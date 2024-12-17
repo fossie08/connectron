@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
@@ -85,12 +86,9 @@ func SetupWindow(connectronApp fyne.App) {
 }
 
 func startGameSetup(gridWidth, gridHeight, lineLength, playerCount int, includeAI, enableAlliances bool) {
-	// Validate inputs and prepare game settings
-	// This is a placeholder for further development
-	fmt.Printf("Grid Width: %d\n", gridWidth)
-	fmt.Printf("Grid Height: %d\n", gridHeight)
-	fmt.Printf("Line Length to Win: %d\n", lineLength)
-	fmt.Printf("Player Count: %d\n", playerCount)
-	fmt.Printf("Include AI: %v\n", includeAI)
-	fmt.Printf("Enable Alliances: %v\n", enableAlliances)
+	// Create a new Game instance with the setup parameters
+	game := NewGame(gridWidth, gridHeight, playerCount, lineLength)
+
+	// Pass the game instance to MainGameWindow and display the window
+	MainGameWindow(game, fyne.CurrentApp())
 }

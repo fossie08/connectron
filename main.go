@@ -15,6 +15,7 @@ func main() {
 
 	// Set the window size
 	mainWindow.Resize(fyne.Size{1200,1000})
+	mainWindow.CenterOnScreen()
 
 	// Create menu items
 	menu := fyne.NewMainMenu(

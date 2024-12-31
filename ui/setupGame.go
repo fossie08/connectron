@@ -2,10 +2,16 @@ package ui
 
 import (
 	"fmt"
-
+	"strconv"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
+)
+
+const (
+	EasyAI   = iota
+	MediumAI
+	HardAI
 )
 
 func SetupWindow(connectronApp fyne.App) {
@@ -30,7 +36,7 @@ func SetupWindow(connectronApp fyne.App) {
 
 	// Line Length to Win
 	lineLengthLabel := widget.NewLabel("Line Length to Win (4-10):")
-	lineLengthValue := widget.NewLabel("4") // Label to display the current slider value
+	lineLengthValue := widget.NewLabel("4") // Default line length
 	lineLengthSlider := widget.NewSlider(4, 10)
 	lineLengthSlider.OnChanged = func(value float64) {
 		lineLengthValue.SetText(fmt.Sprintf("%d", int(value)))
@@ -40,34 +46,62 @@ func SetupWindow(connectronApp fyne.App) {
 	playerCountLabel := widget.NewLabel("Number of Players (0-10):")
 	playerCountValue := widget.NewLabel("0") // Label to display the current slider value
 	playerCountSlider := widget.NewSlider(0, 10)
-	playerCountSlider.OnChanged = func(value float64) {
-		playerCountValue.SetText(fmt.Sprintf("%d", int(value)))
+
+	// Player Dropdowns Container
+	playerDropdownsContainer := container.NewVBox()
+
+	// Update player dropdowns based on the number of players
+	updatePlayerDropdowns := func(count int) {
+		playerDropdownsContainer.RemoveAll() // Clear existing dropdowns
+		for i := 0; i < count; i++ {
+			options := []string{"Easy AI", "Medium AI", "Hard AI", "Person"}
+			dropdown := widget.NewSelect(options, func(selected string) {
+				// Handle selection change if needed
+			})
+			playerDropdownsContainer.Add(dropdown)
+		}
+		playerDropdownsContainer.Refresh() // Refresh the container to show new dropdowns
 	}
 
-	// AI Inclusion Checkbox
-	aiCheckbox := widget.NewCheck("Include AI for Missing Players", nil)
+	playerCountSlider.OnChanged = func(value float64) {
+		playerCountValue.SetText(fmt.Sprintf("%d", int(value)))
+		updatePlayerDropdowns(int(value))
+	}
 
-	// Alliance Option Checkbox
-	allianceCheckbox := widget.NewCheck("Enable Player Alliances", nil)
+	// Player Type Dropdown
+	playerTypes := make([]int, 4)
+	for i := 0; i < 4; i++ {
+		playerTypes[i] = EasyAI // Default AI type
+	}
 
-	// Buttons for Actions
+	// AI/Player Configuration
+	aiForMissingCheckbox := widget.NewCheck("AI for Missing Players", nil)
+	bestOfValue := widget.NewLabel("Best of (3, 5, etc.):")
+	bestOfDropdown := widget.NewSelect([]string{"3", "5", "7"}, func(selected string) {
+		bestOfValue.SetText(selected)
+	})
+
+	// Special Rule Options
+	cornerBonusCheckbox := widget.NewCheck("Enable Corner Bonus", nil)
+	solitaireRuleCheckbox := widget.NewCheck("Enable Solitaire Destruction", nil)
+	bombCounterCheckbox := widget.NewCheck("Enable Bomb Counter", nil)
+	overflowRuleCheckbox := widget.NewCheck("Enable Overflow Rule", nil)
+
 	startGameButton := widget.NewButton("Start Game", func() {
-		startGameSetup(
-			int(gridWidthSlider.Value),
-			int(gridHeightSlider.Value),
-			int(lineLengthSlider.Value),
-			int(playerCountSlider.Value),
-			aiCheckbox.Checked,
-			allianceCheckbox.Checked,
-		)
+		bestOf := 3 // Default value
+		if bestOfDropdown.Selected != "" {
+			bestOf, _ = strconv.Atoi(bestOfDropdown.Selected)
+		}
+
+		startGameSetup(int(gridWidthSlider.Value), int(gridHeightSlider.Value), int(lineLengthSlider.Value), int(playerCountSlider.Value), false, playerTypes, bestOf, cornerBonusCheckbox.Checked, solitaireRuleCheckbox.Checked, bombCounterCheckbox.Checked, overflowRuleCheckbox.Checked, aiForMissingCheckbox.Checked)
+		setupWindow.Close()
 	})
 
 	cancelButton := widget.NewButton("Cancel", func() {
 		setupWindow.Close()
 	})
 
-	// Layout
-	content := container.NewVBox(
+	leftcontent := container.NewVBox(
 		gridWidthLabel,
 		gridWidthSlider, gridWidthValue,
 		gridHeightLabel,
@@ -76,19 +110,25 @@ func SetupWindow(connectronApp fyne.App) {
 		lineLengthSlider, lineLengthValue,
 		playerCountLabel,
 		playerCountSlider, playerCountValue,
-		aiCheckbox,
-		allianceCheckbox,
+		aiForMissingCheckbox,
+		bestOfValue,
+		bestOfDropdown,
+		cornerBonusCheckbox,
+		solitaireRuleCheckbox,
+		bombCounterCheckbox,
+		overflowRuleCheckbox,
 		container.NewHBox(startGameButton, cancelButton),
 	)
 
+	content := container.NewHBox(leftcontent, playerDropdownsContainer)
 	setupWindow.SetContent(content)
 	setupWindow.Show()
 }
 
-func startGameSetup(gridWidth, gridHeight, lineLength, playerCount int, includeAI, enableAlliances bool) {
-	// Create a new Game instance with the setup parameters
-	game := NewGame(gridWidth, gridHeight, playerCount, lineLength)
+func startGameSetup(gridWidth, gridHeight, lineLength, playerCount int, enableAlliances bool, playerTypes []int, bestOf int, cornerBonus, solitaireRule, bombCounter, overflowRule, aiForMissing bool) {
+    // Create a new Game instance with the setup parameters
+    game := NewGame(gridWidth, gridHeight, playerCount, lineLength, bestOf, playerTypes, aiForMissing, cornerBonus, solitaireRule, bombCounter, overflowRule)
 
-	// Pass the game instance to MainGameWindow and display the window
-	MainGameWindow(game, fyne.CurrentApp())
+    // Pass the game instance to MainGameWindow and display the window
+    MainGameWindow(game, fyne.CurrentApp())
 }

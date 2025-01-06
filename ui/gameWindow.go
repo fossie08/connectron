@@ -283,7 +283,7 @@ func (g *Game) CheckSolitaire() {
 
 func (g *Game) UseBombCounter(row, col int) {
 	if g.BombCounter {
-		for _, dir := range [][2]int{{0, 0}, {0, 1}, {1, 0}, {0, -1}, {-1, 0}} {
+		for _, dir := range [][2]int{{0, 0}, {0, 1}, {1, 0}, {0, -1}, {-1, 0}, {1, 1}, {1, -1}, {-1, -1}, {-1, 1}} {
 			r, c := row+dir[0], col+dir[1]
 			if r >= 0 && r < len(g.Grid) && c >= 0 && c < len(g.Grid[0]) {
 				g.Grid[r][c] = -1
@@ -349,6 +349,24 @@ func MainGameWindow(gw *Game, connectronApp fyne.App) {
 		cell := gridContainer.Objects[row*len(gw.Grid[0])+column].(*canvas.Circle)
 		cell.FillColor = gw.Colors[gw.CurrentTurn]
 		cell.Refresh()
+
+		// Apply special rules
+		gw.CheckCornerBonus(row, column)
+		gw.CheckSolitaire()
+		gw.CheckOverflow(column)
+
+		// Update the UI for the newly added counters
+		for i := 0; i < len(gw.Grid); i++ {
+			for j := 0; j < len(gw.Grid[0]); j++ {
+				cell := gridContainer.Objects[i*len(gw.Grid[0])+j].(*canvas.Circle)
+				if gw.Grid[i][j] != -1 {
+					cell.FillColor = gw.Colors[gw.Grid[i][j]]
+				} else {
+					cell.FillColor = color.RGBA{240, 240, 240, 255} // Default color for empty cells
+				}
+				cell.Refresh()
+			}
+		}
 
 		// Check for win
 		if gw.CheckWin(row, column) {

@@ -26,10 +26,12 @@ type Game struct {
     BombCounter    bool
     OverflowRule   bool
     AIForMissing   bool
+	Winners		   []int
+	GridHistory    [][][]int
 }
 
 
-func NewGame(gridWidth, gridHeight, players, winLength, bestOf int, playerTypes []int, aiForMissing, cornerBonus, solitaireRule, bombCounter, overflowRule bool) *Game {
+func NewGame(gridWidth, gridHeight, players, winLength, roundCounter, bestOf int, playerTypes []int, aiForMissing, cornerBonus, solitaireRule, bombCounter, overflowRule bool) *Game {
     grid := make([][]int, gridHeight)
     for i := range grid {
         grid[i] = make([]int, gridWidth)
@@ -59,26 +61,12 @@ func NewGame(gridWidth, gridHeight, players, winLength, bestOf int, playerTypes 
         Colors:         playerColors[:players],
         PlayerTypes:    playerTypes,
         BestOf:         bestOf,
-        RoundCount:     0,
+        RoundCount:     roundCounter,
         CornerBonus:    cornerBonus,
         SolitaireRule:  solitaireRule,
         BombCounter:    bombCounter,
         OverflowRule:   overflowRule,
         AIForMissing:   aiForMissing,
-    }
-}
-
-func (g *Game) CheckCornerBonus(row, col int) {
-    if (row == 0 || row == len(g.Grid)-1) && (col == 0 || col == len(g.Grid[0])-1) && g.CornerBonus {
-        if g.Grid[row][col] != -1 {
-            // Apply the corner bonus (2 counters, 3 if win length is 7 or more)
-            //bonus := 2
-            if g.WinLength >= 7 {
-                //bonus = 3
-            }
-            // Apply bonus logic (for simplicity, assume we apply the bonus to the current player)
-            // You can expand this logic depending on your needs
-        }
     }
 }
 
@@ -229,13 +217,118 @@ func (g *Game) evaluateBoard(isMaximizing bool) int {
 	return -1
 }
 
+func (g *Game) CheckCornerBonus(row, col int) {
+	if g.CornerBonus && (row == 0 || row == len(g.Grid)-1) && (col == 0 || col == len(g.Grid[0])-1) {
+		bonus := 2
+		if g.WinLength >= 7 {
+			bonus = 3
+		}
+		// Example usage: Adding the bonus to the player's score
+		player := g.Grid[row][col]
+		if player >= 0 {
+			// Assuming you have a score tracking mechanism
+			// UpdateScore(player, bonus)
+			fmt.Printf("Player %d gets a corner bonus of %d points!\n", player, bonus)
+		}
+	}
+}
+
+func (g *Game) CheckSolitaire() {
+    if !g.SolitaireRule {
+        fmt.Println("Solitaire rule is not enabled.")
+        return // Exit if the solitaire rule is not enabled
+    }
+
+    for row := 0; row < len(g.Grid); row++ {
+        for col := 0; col < len(g.Grid[0]); col++ {
+            player := g.Grid[row][col]
+            if player == -1 {
+                continue // Skip empty cells
+            }
+
+            // Check if all neighbors belong to the same player
+            neighborPlayer := -1
+            surroundedBySamePlayer := true
+            for _, dir := range [][2]int{{0, 1}, {1, 0}, {0, -1}, {-1, 0}} {
+                r, c := row+dir[0], col+dir[1]
+                if r >= 0 && r < len(g.Grid) && c >= 0 && c < len(g.Grid[0]) {
+                    neighbor := g.Grid[r][c]
+                    if neighbor == -1 || (neighborPlayer != -1 && neighbor != neighborPlayer) {
+                        surroundedBySamePlayer = false
+                        break
+                    }
+                    neighborPlayer = neighbor
+                } else {
+                    surroundedBySamePlayer = false // Out-of-bound neighbors do not count
+                    break
+                }
+            }
+
+            if surroundedBySamePlayer {
+                // Remove the solitaire counter
+                for r := row; r > 0; r-- {
+                    g.Grid[r][col] = g.Grid[r-1][col]
+                }
+                g.Grid[0][col] = -1 // Set the top cell to empty
+
+                // Reset the loop to re-check the updated grid
+                row = 0
+                col = -1 // This ensures the outer loop resets correctly after modification
+                break
+            }
+        }
+    }
+}
+
+
+func (g *Game) UseBombCounter(row, col int) {
+	if g.BombCounter {
+		for _, dir := range [][2]int{{0, 0}, {0, 1}, {1, 0}, {0, -1}, {-1, 0}} {
+			r, c := row+dir[0], col+dir[1]
+			if r >= 0 && r < len(g.Grid) && c >= 0 && c < len(g.Grid[0]) {
+				g.Grid[r][c] = -1
+			}
+		}
+	}
+}
+
+func (g *Game) CheckOverflow(column int) {
+    if g.OverflowRule && len(g.Grid) >= 6 {
+        full := true
+        for _, cell := range g.Grid {
+            if cell[column] == -1 {
+                full = false
+                break
+            }
+        }
+        if full {
+            // Drop a counter in the left adjacent column if possible
+            if column > 0 {
+                row, success := g.DropCounter(column - 1)
+                if success {
+                    // Set the color of the newly dropped counter
+                    g.Grid[row][column-1] = g.CurrentTurn
+                }
+            }
+            // Drop a counter in the right adjacent column if possible
+            if column < len(g.Grid[0])-1 {
+                row, success := g.DropCounter(column + 1)
+                if success {
+                    // Set the color of the newly dropped counter
+                    g.Grid[row][column+1] = g.CurrentTurn
+                }
+            }
+        }
+    }
+} 
+
 // Main game window
 func MainGameWindow(gw *Game, connectronApp fyne.App) {
 	gameWindow := connectronApp.NewWindow("Connectron - Game")
 	infoLabel := widget.NewLabel("Game Start!")
-	gameWindow.SetFullScreen(true)
+	//gameWindow.SetFullScreen(true)
 
-	gridContainer := container.NewGridWithColumns(len(gw.Grid[0]))
+	gridContainer := container.NewGridWithColumns(len(gw.Grid[0]))	
 	for j := 0; j < len(gw.Grid[0]); j++ {
 		for i := 0; i < len(gw.Grid); i++ {
 			cell := canvas.NewCircle(color.RGBA{240, 240, 240, 255})
@@ -257,19 +350,53 @@ func MainGameWindow(gw *Game, connectronApp fyne.App) {
 		cell.FillColor = gw.Colors[gw.CurrentTurn]
 		cell.Refresh()
 
+		// Check for win
 		if gw.CheckWin(row, column) {
 			infoLabel.SetText(fmt.Sprintf("Player %d Wins!", gw.CurrentTurn+1))
+			
+			// Record the winner
+			gw.Winners = append(gw.Winners, gw.CurrentTurn+1)
+			gw.GridHistory = append(gw.GridHistory, copyGrid(gw.Grid)) // Store current grid state
+			fmt.Println("A player won: Round count", gw.RoundCount, "Best of", gw.BestOf)
+			if gw.RoundCount+1 < gw.BestOf {
+				gw.RoundCount++
+				gameWindow.Close()
+				// Start a new game
+				nextGame := NewGame(len(gw.Grid[0]), len(gw.Grid), gw.Players, gw.WinLength, gw.RoundCount, gw.BestOf, gw.PlayerTypes, gw.AIForMissing, gw.CornerBonus, gw.SolitaireRule, gw.BombCounter, gw.OverflowRule)
+				MainGameWindow(nextGame, connectronApp)
+			} else {
+				gameWindow.Close()
+				// Show results window
+				ShowResultsWindow(gw, connectronApp)
+			}
 			return true
 		}
 
+		// Check for draw
 		if gw.IsFull() {
+			fmt.Println("Draw: Round count", gw.RoundCount, "Best of", gw.BestOf)
 			infoLabel.SetText("The game is a draw!")
+			gw.Winners = append(gw.Winners, 0) // 0 indicates a draw
+			gw.GridHistory = append(gw.GridHistory, copyGrid(gw.Grid))
+
+			if gw.RoundCount+1 < gw.BestOf {
+				gw.RoundCount++
+				gameWindow.Close()
+				// Start a new game
+				nextGame := NewGame(len(gw.Grid[0]), len(gw.Grid), gw.Players, gw.WinLength, gw.RoundCount, gw.BestOf, gw.PlayerTypes, gw.AIForMissing, gw.CornerBonus, gw.SolitaireRule, gw.BombCounter, gw.OverflowRule)
+				MainGameWindow(nextGame, connectronApp)
+			} else {
+				gameWindow.Close()
+				// Show results window
+				ShowResultsWindow(gw, connectronApp)
+			}
 			return true
 		}
 
 		gw.CurrentTurn = (gw.CurrentTurn + 1) % gw.Players
 		infoLabel.SetText(fmt.Sprintf("Player %d's Turn", gw.CurrentTurn+1))
 
+		// AI move handling
 		if gw.PlayerTypes[gw.CurrentTurn] != -1 {
 			aiColumn, aiRow := gw.GetAIColumn(gw.PlayerTypes[gw.CurrentTurn])
 			time.AfterFunc(10*time.Millisecond, func() {
@@ -311,6 +438,38 @@ func MainGameWindow(gw *Game, connectronApp fyne.App) {
 			processTurn(aiColumn, aiRow)
 		})
 	}
+}
+
+func ShowResultsWindow(gw *Game, connectronApp fyne.App) {
+    resultsWindow := connectronApp.NewWindow("Series Results")
+    resultsText := "Series Results:\n\n"
+    for i, winner := range gw.Winners {
+        if winner == 0 {
+            resultsText += fmt.Sprintf("Game %d: Draw\n", i+1)
+        } else {
+            resultsText += fmt.Sprintf("Game %d: Player %d Wins\n", i+1, winner)
+        }
+    }
+
+    resultsLabel := widget.NewLabel(resultsText)
+    closeButton := widget.NewButton("Close", func() {
+        resultsWindow.Close()
+    })
+
+    resultsWindow.SetContent(container.NewVBox(resultsLabel, closeButton))
+    resultsWindow.Resize(fyne.NewSize(400, 300))
+    resultsWindow.Show()
+}
+
+
+// Utility function to copy the grid
+func copyGrid(grid [][]int) [][]int {
+    newGrid := make([][]int, len(grid))
+    for i := range grid {
+        newGrid[i] = make([]int, len(grid[i]))
+        copy(newGrid[i], grid[i])
+    }
+    return newGrid
 }
 
 func init() {

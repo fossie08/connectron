@@ -49,6 +49,7 @@ func SetupWindow(connectronApp fyne.App) {
 
 	// Player Dropdowns Container
 	playerDropdownsContainer := container.NewVBox()
+	playerTypes := make([]int, 10) // Track player types
 
 	// Update player dropdowns based on the number of players
 	updatePlayerDropdowns := func(count int) {
@@ -56,7 +57,17 @@ func SetupWindow(connectronApp fyne.App) {
 		for i := 0; i < count; i++ {
 			options := []string{"Easy AI", "Medium AI", "Hard AI", "Person"}
 			dropdown := widget.NewSelect(options, func(selected string) {
-				// Handle selection change if needed
+				fmt.Printf("Player %d type set to: %s\n", i+1, selected)
+				switch selected {
+				case "Easy AI":
+					playerTypes[i] = EasyAI
+				case "Medium AI":
+					playerTypes[i] = MediumAI
+				case "Hard AI":
+					playerTypes[i] = HardAI
+				case "Person":
+					playerTypes[i] = -1
+				}
 			})
 			playerDropdownsContainer.Add(dropdown)
 		}
@@ -68,16 +79,10 @@ func SetupWindow(connectronApp fyne.App) {
 		updatePlayerDropdowns(int(value))
 	}
 
-	// Player Type Dropdown
-	playerTypes := make([]int, 4)
-	for i := 0; i < 4; i++ {
-		playerTypes[i] = EasyAI // Default AI type
-	}
-
 	// AI/Player Configuration
 	aiForMissingCheckbox := widget.NewCheck("AI for Missing Players", nil)
 	bestOfValue := widget.NewLabel("Best of (3, 5, etc.):")
-	bestOfDropdown := widget.NewSelect([]string{"3", "5", "7"}, func(selected string) {
+	bestOfDropdown := widget.NewSelect([]string{"1", "3", "5", "7"}, func(selected string) {
 		bestOfValue.SetText(selected)
 	})
 
@@ -126,9 +131,9 @@ func SetupWindow(connectronApp fyne.App) {
 }
 
 func startGameSetup(gridWidth, gridHeight, lineLength, playerCount int, enableAlliances bool, playerTypes []int, bestOf int, cornerBonus, solitaireRule, bombCounter, overflowRule, aiForMissing bool) {
-    // Create a new Game instance with the setup parameters
-    game := NewGame(gridWidth, gridHeight, playerCount, lineLength, bestOf, playerTypes, aiForMissing, cornerBonus, solitaireRule, bombCounter, overflowRule)
+	// Create a new Game instance with the setup parameters
+	game := NewGame(gridWidth, gridHeight, playerCount, lineLength, 0, bestOf, playerTypes, aiForMissing, cornerBonus, solitaireRule, bombCounter, overflowRule)
 
-    // Pass the game instance to MainGameWindow and display the window
-    MainGameWindow(game, fyne.CurrentApp())
+	// Pass the game instance to MainGameWindow and display the window
+	MainGameWindow(game, fyne.CurrentApp())
 }

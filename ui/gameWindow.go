@@ -326,7 +326,7 @@ func (g *Game) CheckOverflow(column int) {
 func MainGameWindow(gw *Game, connectronApp fyne.App) {
 	gameWindow := connectronApp.NewWindow("Connectron - Game")
 	infoLabel := widget.NewLabel("Game Start!")
-	//gameWindow.SetFullScreen(true)
+	gameWindow.SetFullScreen(true)
 
 	gridContainer := container.NewGridWithColumns(len(gw.Grid[0]))	
 	for j := 0; j < len(gw.Grid[0]); j++ {

@@ -6,7 +6,7 @@ A-Level Comp sci project - RMB
 - [x] 6x6 to 100x100 grid size
 - [x] line length of 4-10 counters needed to win
 - [x] counters always drop to the bottom
-- [x] best of 3, 5, 7, etc
+- [x] best of 1, 3, 5, 7, etc
 
 ### special rules
 - [ ] counters in any of the corners count as 2 counters

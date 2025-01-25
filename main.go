@@ -2,14 +2,12 @@ package main
 
 import (
 	"fmt"
-	"strconv"
-
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"insighthub.uk/connectron/v2/settings"
+	"strconv"
 	"insighthub.uk/connectron/v2/ui"
 )
 
@@ -19,6 +17,9 @@ const (
 	HardAI
 )
 
+var alliances = map[string][]string{}
+var unassigned []string
+
 func main() {
 	// Initialize the application
 	connectronApp := app.New()
@@ -26,16 +27,14 @@ func main() {
 	mainWindow := connectronApp.NewWindow("Connectron")
 
 	// Set the window size
-	mainWindow.Resize(fyne.Size{1200,1000})
+	mainWindow.Resize(fyne.Size{1200, 1000})
 	mainWindow.CenterOnScreen()
 
 	// Create menu items
 	menu := fyne.NewMainMenu(
-		fyne.NewMenu("File",
-			//fyne.NewMenuItem("New Game", func() { ui.SetupWindow(connectronApp) }),
-		),
+		fyne.NewMenu("File"),
 		fyne.NewMenu("Edit",
-			fyne.NewMenuItem("Settings", func() { settings.ShowSettingsWindow(connectronApp, "1.0.0") }),
+			fyne.NewMenuItem("Settings", func() { ShowSettingsWindow(connectronApp) }),
 		),
 	)
 
@@ -43,16 +42,16 @@ func main() {
 	mainWindow.SetMainMenu(menu)
 
 	// Grid Width Selection
-	gridWidthLabel := widget.NewLabel("Grid width (6-100):")
-	gridWidthValue := widget.NewLabel("6") // Label to display the current slider value
+	gridWidthLabel := widget.NewLabel("Grid Width (6-100):")
+	gridWidthValue := widget.NewLabel("6")
 	gridWidthSlider := widget.NewSlider(6, 100)
 	gridWidthSlider.OnChanged = func(value float64) {
 		gridWidthValue.SetText(fmt.Sprintf("%d", int(value)))
 	}
 
 	// Grid Height Selection
-	gridHeightLabel := widget.NewLabel("Grid height (6-100):")
-	gridHeightValue := widget.NewLabel("6") // Label to display the current slider value
+	gridHeightLabel := widget.NewLabel("Grid Height (6-100):")
+	gridHeightValue := widget.NewLabel("6")
 	gridHeightSlider := widget.NewSlider(6, 100)
 	gridHeightSlider.OnChanged = func(value float64) {
 		gridHeightValue.SetText(fmt.Sprintf("%d", int(value)))
@@ -60,28 +59,26 @@ func main() {
 
 	// Line Length to Win
 	lineLengthLabel := widget.NewLabel("Line Length to Win (4-10):")
-	lineLengthValue := widget.NewLabel("4") // Default line length
+	lineLengthValue := widget.NewLabel("4")
 	lineLengthSlider := widget.NewSlider(4, 10)
 	lineLengthSlider.OnChanged = func(value float64) {
 		lineLengthValue.SetText(fmt.Sprintf("%d", int(value)))
 	}
 
 	// Number of Players
-	playerCountLabel := widget.NewLabel("Number of Players (0-10):")
-	playerCountValue := widget.NewLabel("0") // Label to display the current slider value
-	playerCountSlider := widget.NewSlider(0, 10)
+	playerCountLabel := widget.NewLabel("Number of Players (1-10):")
+	playerCountValue := widget.NewLabel("1")
+	playerCountSlider := widget.NewSlider(1, 10)
 
 	// Player Dropdowns Container
 	playerDropdownsContainer := container.NewVBox()
-	playerTypes := make([]int, 10) // Track player types
+	playerTypes := make([]int, 10)
 
-	// Update player dropdowns based on the number of players
 	updatePlayerDropdowns := func(count int) {
-		playerDropdownsContainer.RemoveAll() // Clear existing dropdowns
+		playerDropdownsContainer.RemoveAll()
 		for i := 0; i < count; i++ {
 			options := []string{"Easy AI", "Medium AI", "Hard AI", "Person"}
 			dropdown := widget.NewSelect(options, func(selected string) {
-				fmt.Printf("Player %d type set to: %s\n", i+1, selected)
 				switch selected {
 				case "Easy AI":
 					playerTypes[i] = EasyAI
@@ -93,30 +90,20 @@ func main() {
 					playerTypes[i] = -1
 				}
 			})
-			playerDropdownsContainer.Add(dropdown)
+			dropdown.SetSelected("Person")
+			playerDropdownsContainer.Add(container.NewHBox(widget.NewLabel(fmt.Sprintf("Player %d:", i+1)), dropdown))
 		}
-		playerDropdownsContainer.Refresh() // Refresh the container to show new dropdowns
+		playerDropdownsContainer.Refresh()
 	}
 
+	updatePlayerDropdowns(int(playerCountSlider.Value))
 	playerCountSlider.OnChanged = func(value float64) {
 		playerCountValue.SetText(fmt.Sprintf("%d", int(value)))
 		updatePlayerDropdowns(int(value))
 	}
 
-	// AI/Player Configuration
+	// Missing player AI Configuration
 	aiForMissingCheckbox := widget.NewCheck("AI for Missing Players", nil)
-	bestOfValue := widget.NewLabel("Best of: 1")
-
-	// Define the options for the radio buttons
-	options := []string{"1", "3", "5", "7"}
-
-	// Create a radio group with the options
-	bestOfRadioGroup := widget.NewRadioGroup(options, func(selected string) {
-		bestOfValue.SetText(fmt.Sprintf("Best of: %s", selected))
-	})
-
-	// Set the default selection (optional)
-	bestOfRadioGroup.SetSelected("1") // Set default to "3"
 
 	// Special Rule Options
 	cornerBonusCheckbox := widget.NewCheck("Enable Corner Bonus", nil)
@@ -124,50 +111,246 @@ func main() {
 	bombCounterCheckbox := widget.NewCheck("Enable Bomb Counter", nil)
 	overflowRuleCheckbox := widget.NewCheck("Enable Overflow Rule", nil)
 
-	startGameButton := widget.NewButton("Start Game", func() {
-		bestofConverted, _ := strconv.Atoi(bestOfRadioGroup.Selected)
-		startGameSetup(int(gridWidthSlider.Value), int(gridHeightSlider.Value), int(lineLengthSlider.Value), int(playerCountSlider.Value), false, playerTypes, bestofConverted, cornerBonusCheckbox.Checked, solitaireRuleCheckbox.Checked, bombCounterCheckbox.Checked, overflowRuleCheckbox.Checked, aiForMissingCheckbox.Checked)
+	// Alliance Rule
+	allianceRuleCheckbox := widget.NewCheck("Enable Alliances Rule", nil)
+	allianceSetupButton := widget.NewButton("Configure Alliances", func() {
+		showAlliancesWindow(connectronApp, playerCountSlider)
 	})
 
-	leftcontent := container.NewVBox(
-		gridWidthLabel,
-		gridWidthSlider, gridWidthValue,
-		gridHeightLabel,
-		gridHeightSlider, gridHeightValue,
-		lineLengthLabel,
-		lineLengthSlider, lineLengthValue,
-		playerCountLabel,
-		playerCountSlider, playerCountValue,
+	// Layout containers
+	gridSettings := container.NewVBox(
+		gridWidthLabel, gridWidthSlider, gridWidthValue,
+		gridHeightLabel, gridHeightSlider, gridHeightValue,
+		lineLengthLabel, lineLengthSlider, lineLengthValue,
+	)
+
+	playerSettings := container.NewVBox(
+		playerCountLabel, playerCountSlider, playerCountValue,
+		playerDropdownsContainer,
 		aiForMissingCheckbox,
-		bestOfValue,
-		bestOfRadioGroup,
+	)
+
+	ruleSettings := container.NewVBox(
 		cornerBonusCheckbox,
 		solitaireRuleCheckbox,
 		bombCounterCheckbox,
 		overflowRuleCheckbox,
-		container.NewHBox(startGameButton),
+		allianceRuleCheckbox,
+		allianceSetupButton,
 	)
 
-	//temp data
-	playerData := [][]string{
-		{"Name", "Score", "Min Speed", "Max Speed", "UUID"}, // Header row
-		{"Alice", "150", "1.5", "3.0", "UUID-001"},
-		{"Bob", "200", "2.0", "4.5", "UUID-002"},
-		{"Charlie", "120", "1.0", "3.5", "UUID-003"},
-		{"Diana", "180", "1.8", "4.0", "UUID-004"},
-		{"Eve", "220", "2.2", "5.0", "UUID-005"},
-	}
+	leftPane := container.NewVBox(
+		widget.NewAccordion(
+			widget.NewAccordionItem("Grid Settings", gridSettings),
+			widget.NewAccordionItem("Player Settings", playerSettings),
+			widget.NewAccordionItem("Rules", ruleSettings),
+		),
+	)
 
-	setupgameContainer := container.NewHBox(leftcontent, playerDropdownsContainer)
-	content := container.NewBorder(nil,nil,nil,setupgameContainer,ui.CreateLeaderboard(playerData))
-	mainWindow.SetContent(content)
+	// Start Game Button
+	startGameButton := widget.NewButton("Start Game", func() {
+		bestOfConverted, _ := strconv.Atoi("1")
+		startGameSetup(int(gridWidthSlider.Value), int(gridHeightSlider.Value), int(lineLengthSlider.Value), int(playerCountSlider.Value), allianceRuleCheckbox.Checked, playerTypes, bestOfConverted, cornerBonusCheckbox.Checked, solitaireRuleCheckbox.Checked, bombCounterCheckbox.Checked, overflowRuleCheckbox.Checked, aiForMissingCheckbox.Checked)
+	})
+
+	// Main Tabs
+	tabs := container.NewAppTabs(
+		container.NewTabItem("Setup Game", leftPane),
+	)
+
+	mainWindow.SetContent(container.NewBorder(nil, startGameButton, nil, nil, tabs))
 	mainWindow.ShowAndRun()
 }
 
+// ShowSettingsWindow creates a simple settings window
+func ShowSettingsWindow(a fyne.App) {
+	win := a.NewWindow("Settings")
+	win.SetContent(container.NewVBox(
+		widget.NewLabel("Settings Window"),
+		widget.NewButton("Close", func() {
+			win.Close()
+		}),
+	))
+	win.Resize(fyne.NewSize(400, 300))
+	win.Show()
+}
+
+// startGameSetup initiates the game setup based on selected settings
 func startGameSetup(gridWidth, gridHeight, lineLength, playerCount int, enableAlliances bool, playerTypes []int, bestOf int, cornerBonus, solitaireRule, bombCounter, overflowRule, aiForMissing bool) {
-	// Create a new Game instance with the setup parameters
+	// Create and configure the game instance here (this part is a placeholder)
 	game := ui.NewGame(gridWidth, gridHeight, playerCount, lineLength, 0, bestOf, playerTypes, aiForMissing, cornerBonus, solitaireRule, bombCounter, overflowRule)
 
-	// Pass the game instance to MainGameWindow and display the window
+	// Display the main game window
 	ui.MainGameWindow(game, fyne.CurrentApp())
+}
+
+// showAlliancesWindow creates and displays the alliances configuration window
+func showAlliancesWindow(a fyne.App, playerCountSlider *widget.Slider) {
+	win := a.NewWindow("Configure Alliances")
+
+	// Generate players dynamically based on the playerCountSlider value
+	playerCount := int(playerCountSlider.Value)
+	players := make([]string, playerCount)
+	for i := 0; i < playerCount; i++ {
+		players[i] = fmt.Sprintf("Player-%d", i+1)
+	}
+
+	// Update unassigned players whenever the alliances window is opened
+	unassigned = append([]string{}, players...)
+
+	// Create the alliance manager window with the player count slider
+	allianceManagerWindow := CreateAllianceManagerWindow(playerCountSlider)
+
+	// Set the content of the window to the alliance manager
+	win.SetContent(allianceManagerWindow)
+	win.Resize(fyne.NewSize(600, 400))
+	win.Show()
+}
+
+// CreateAllianceManagerWindow creates the alliance manager UI with dynamic player assignment
+func CreateAllianceManagerWindow(playerCountSlider *widget.Slider) fyne.CanvasObject {
+	// Variables to track the selected item in lists
+	var selectedUnassignedItem int
+	var selectedAllianceItem int
+
+	// Unassigned players list
+	unassignedList := widget.NewList(
+		func() int { return len(unassigned) },
+		func() fyne.CanvasObject { return widget.NewLabel("") },
+		func(id widget.ListItemID, o fyne.CanvasObject) {
+			o.(*widget.Label).SetText(unassigned[id])
+		},
+	)
+
+	// Set the OnSelected function to track the selected item in unassignedList
+	unassignedList.OnSelected = func(id widget.ListItemID) {
+		selectedUnassignedItem = id
+	}
+
+	// Container to hold alliance lists
+	alliancesContainer := container.NewVBox()
+
+	// Function to refresh all lists
+	refreshLists := func() {
+		unassignedList.Refresh()
+		alliancesContainer.Refresh()
+	}
+	
+
+	// Load existing alliances into the window
+	for allianceName, playersInAlliance := range alliances {
+		// Create a list for each existing alliance
+		allianceList := widget.NewList(
+			func() int { return len(playersInAlliance) },
+			func() fyne.CanvasObject { return widget.NewLabel("") },
+			func(id widget.ListItemID, o fyne.CanvasObject) {
+				o.(*widget.Label).SetText(playersInAlliance[id])
+			},
+		)
+
+		// Track the selected item in allianceList
+		allianceList.OnSelected = func(id widget.ListItemID) {
+			selectedAllianceItem = id
+		}
+
+		// Drag-and-drop buttons for the alliance
+		moveToAlliance := widget.NewButton("→ Assign", func() {
+			if selectedUnassignedItem >= 0 && selectedUnassignedItem < len(unassigned) {
+				player := unassigned[selectedUnassignedItem]
+				unassigned = append(unassigned[:selectedUnassignedItem], unassigned[selectedUnassignedItem+1:]...)
+				alliances[allianceName] = append(alliances[allianceName], player)
+				refreshLists()
+			}
+		})
+
+		moveToUnassigned := widget.NewButton("← Unassign", func() {
+			if selectedAllianceItem >= 0 && selectedAllianceItem < len(alliances[allianceName]) {
+				player := alliances[allianceName][selectedAllianceItem]
+				alliances[allianceName] = append(alliances[allianceName][:selectedAllianceItem], alliances[allianceName][selectedAllianceItem+1:]...)
+				unassigned = append(unassigned, player)
+				refreshLists()
+			}
+		})
+
+		// Add the new alliance to the container
+		alliancesContainer.Add(container.NewVBox(
+			widget.NewLabel(allianceName),
+			container.NewVBox(
+				allianceList,
+				container.NewHBox(moveToAlliance, moveToUnassigned),
+			),
+		))
+	}
+
+
+	// Create a new alliance
+	newAllianceButton := widget.NewButton("Add Alliance", func() {
+		allianceName := fmt.Sprintf("Alliance-%d", len(alliances)+1)
+		alliances[allianceName] = []string{}
+
+		// Create a list for the new alliance
+		allianceList := widget.NewList(
+			func() int { return len(alliances[allianceName]) },
+			func() fyne.CanvasObject { return widget.NewLabel("") },
+			func(id widget.ListItemID, o fyne.CanvasObject) {
+				o.(*widget.Label).SetText(alliances[allianceName][id])
+			},
+		)
+
+		// Track the selected item in allianceList
+		allianceList.OnSelected = func(id widget.ListItemID) {
+			selectedAllianceItem = id
+		}
+
+		// Drag-and-drop buttons for the alliance
+		moveToAlliance := widget.NewButton("→ Assign", func() {
+			if selectedUnassignedItem >= 0 && selectedUnassignedItem < len(unassigned) {
+				player := unassigned[selectedUnassignedItem]
+				unassigned = append(unassigned[:selectedUnassignedItem], unassigned[selectedUnassignedItem+1:]...)
+				alliances[allianceName] = append(alliances[allianceName], player)
+				refreshLists()
+			}
+		})
+
+		moveToUnassigned := widget.NewButton("← Unassign", func() {
+			if selectedAllianceItem >= 0 && selectedAllianceItem < len(alliances[allianceName]) {
+				player := alliances[allianceName][selectedAllianceItem]
+				alliances[allianceName] = append(alliances[allianceName][:selectedAllianceItem], alliances[allianceName][selectedAllianceItem+1:]...)
+				unassigned = append(unassigned, player)
+				refreshLists()
+			}
+		})
+
+		// Add the new alliance to the container
+		alliancesContainer.Add(container.NewVBox(
+			widget.NewLabel(allianceName),
+			container.NewVBox(
+				allianceList,
+				container.NewHBox(moveToAlliance, moveToUnassigned),
+			),
+		))
+	})
+
+	// Confirm button to save the alliances into a 2D array
+	confirmButton := widget.NewButton("Confirm Alliances", func() {
+		// Save alliances to a 2D array (flattening alliances map into a 2D array)
+		var allianceArray [][]string
+		for _, playersInAlliance := range alliances {
+			allianceArray = append(allianceArray, playersInAlliance)
+		}
+
+		// Optionally, save `alliances` globally to persist across windows
+		fmt.Println("Alliances confirmed:", allianceArray)
+	})
+
+	// Layout for the entire alliance manager window
+	content := container.NewBorder(
+		container.NewVBox(newAllianceButton, confirmButton), // Include the confirm button
+		nil,
+		container.NewVBox(widget.NewLabel("Unassigned Players"), unassignedList),
+		nil,
+		alliancesContainer,
+	)
+
+	return content
 }

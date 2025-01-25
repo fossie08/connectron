@@ -10,6 +10,10 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
+	"encoding/csv"
+	"os"
+	"path/filepath"
+	"sort"
 )
 
 type Game struct {
@@ -378,14 +382,14 @@ func MainGameWindow(gw *Game, connectronApp fyne.App) {
 			fmt.Println("A player won: Round count", gw.RoundCount, "Best of", gw.BestOf)
 			if gw.RoundCount+1 < gw.BestOf {
 				gw.RoundCount++
-				gameWindow.Close()
 				// Start a new game
 				nextGame := NewGame(len(gw.Grid[0]), len(gw.Grid), gw.Players, gw.WinLength, gw.RoundCount, gw.BestOf, gw.PlayerTypes, gw.AIForMissing, gw.CornerBonus, gw.SolitaireRule, gw.BombCounter, gw.OverflowRule)
 				MainGameWindow(nextGame, connectronApp)
-			} else {
 				gameWindow.Close()
+			} else {
 				// Show results window
 				ShowResultsWindow(gw, connectronApp)
+				gameWindow.Close()
 			}
 			return true
 		}
@@ -458,25 +462,119 @@ func MainGameWindow(gw *Game, connectronApp fyne.App) {
 	}
 }
 
+func updateLeaderboard(gw *Game) {
+	filePath := filepath.Join("files", "leaderboard.csv")
+	file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		fmt.Println("Error opening leaderboard file:", err)
+		return
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	records, err := reader.ReadAll()
+	if err != nil {
+		fmt.Println("Error reading leaderboard file:", err)
+		return
+	}
+
+	// Create a map to store player stats
+	playerStats := make(map[string][]string)
+	if len(records) > 1 {
+		for _, record := range records[1:] { // Skip header
+			playerStats[record[0]] = record
+		}
+	}
+
+	// Update player stats based on game results
+	for _, winner := range gw.Winners {
+		if winner == 0 {
+			// Draw case
+			for _, record := range playerStats {
+				drawCount, err := strconv.Atoi(record[5])
+				if err == nil {
+					record[5] = strconv.Itoa(drawCount + 1) // Increment Draw count
+				}
+			}
+		} else {
+			player := fmt.Sprintf("Player-%d", winner)
+			if record, exists := playerStats[player]; exists {
+				playedCount, err := strconv.Atoi(record[3])
+				if err == nil {
+					record[3] = strconv.Itoa(playedCount + 1) // Increment Played count
+				}
+				wonCount, err := strconv.Atoi(record[4])
+				if err == nil {
+					record[4] = strconv.Itoa(wonCount + 1) // Increment Won count
+				}
+			} else {
+				playerStats[player] = []string{player, "0", "UUID", "1", "1", "0", "0"}
+			}
+		}
+	}
+
+	// Write updated stats back to the file
+	file.Seek(0, 0)
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	// Write header
+	writer.Write(records[0])
+
+	// Write updated records
+	for _, record := range playerStats {
+		writer.Write(record)
+	}
+}
+
 func ShowResultsWindow(gw *Game, connectronApp fyne.App) {
-    resultsWindow := connectronApp.NewWindow("Series Results")
-    resultsText := "Series Results:\n\n"
-    for i, winner := range gw.Winners {
-        if winner == 0 {
-            resultsText += fmt.Sprintf("Game %d: Draw\n", i+1)
-        } else {
-            resultsText += fmt.Sprintf("Game %d: Player %d Wins\n", i+1, winner)
-        }
-    }
+	updateLeaderboard(gw)
 
-    resultsLabel := widget.NewLabel(resultsText)
-    closeButton := widget.NewButton("Close", func() {
-        resultsWindow.Close()
-    })
+	resultsWindow := connectronApp.NewWindow("Series Results")
+	resultsText := "Series Results:\n\n"
+	for i, winner := range gw.Winners {
+		if winner == 0 {
+			resultsText += fmt.Sprintf("Game %d: Draw\n", i+1)
+		} else {
+			resultsText += fmt.Sprintf("Game %d: Player %d Wins\n", i+1, winner)
+		}
+	}
 
-    resultsWindow.SetContent(container.NewVBox(resultsLabel, closeButton))
-    resultsWindow.Resize(fyne.NewSize(400, 300))
-    resultsWindow.Show()
+	// Sort players by their wins
+	playerWins := make(map[int]int)
+	for _, winner := range gw.Winners {
+		if winner != 0 {
+			playerWins[winner]++
+		}
+	}
+
+	type playerResult struct {
+		Player int
+		Wins   int
+	}
+
+	var results []playerResult
+	for player, wins := range playerWins {
+		results = append(results, playerResult{Player: player, Wins: wins})
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Wins > results[j].Wins
+	})
+
+	resultsText += "\nFinal Standings:\n"
+	for i, result := range results {
+		resultsText += fmt.Sprintf("%d. Player %d with %d wins\n", i+1, result.Player, result.Wins)
+	}
+
+	resultsLabel := widget.NewLabel(resultsText)
+	closeButton := widget.NewButton("Close", func() {
+		resultsWindow.Close()
+	})
+
+	resultsWindow.SetContent(container.NewVBox(resultsLabel, closeButton))
+	resultsWindow.Resize(fyne.NewSize(400, 300))
+	resultsWindow.Show()
 }
 
 

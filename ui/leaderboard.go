@@ -10,10 +10,25 @@ import (
 )
 
 // CreateLeaderboard creates a leaderboard UI from the provided 2D array of player data
-func CreateLeaderboard(playerData [][]string) *fyne.Container {
-	// Create a widget to show leaderboard data
+func CreateLeaderboard(playerData [][]string) fyne.CanvasObject {
+	// Handle the case where no player data is provided
+	if len(playerData) == 0 {
+		return container.NewVBox(widget.NewLabel("No data available"))
+	}
+
+	// Ensure all rows have the same number of columns
+	numRows := len(playerData)
+	numCols := len(playerData[0])
+
+	for _, row := range playerData {
+		if len(row) != numCols {
+			return container.NewVBox(widget.NewLabel("Error: Inconsistent data"))
+		}
+	}
+
+	// Create the table to display the leaderboard data
 	list := widget.NewTable(
-		func() (int, int) { return len(playerData), 5 },
+		func() (int, int) { return numRows, numCols },
 		func() fyne.CanvasObject { return widget.NewLabel("") },
 		func(id widget.TableCellID, o fyne.CanvasObject) {
 			o.(*widget.Label).SetText(playerData[id.Row][id.Col])
@@ -48,27 +63,38 @@ func CreateLeaderboard(playerData [][]string) *fyne.Container {
 		list.Refresh() // Refresh the list with the updated playerData
 	})
 
-	// Creating a toolbar
+	// Create a toolbar
 	toolbar := widget.NewToolbar(
 		widget.NewToolbarAction(theme.MediaReplayIcon(), func() {
-			list.Refresh()
+			list.Refresh() // Refresh the table
 		}),
 		widget.NewToolbarSeparator(),
 	)
 
-	// Setting column widths
-	list.SetColumnWidth(0, 140)
-	list.SetColumnWidth(1, 140)
-	list.SetColumnWidth(2, 140)
-	list.SetColumnWidth(3, 140)
-	list.SetColumnWidth(4, 280)
-
-	// Display list and sorting buttons
+	// Display the table and controls
 	content := container.NewBorder(
-		container.NewHBox(toolbar, sortByNameButton, sortByScoreButton, sortByUUIDButton),
+		container.NewVBox(toolbar, sortByNameButton, sortByScoreButton, sortByUUIDButton),
 		nil, nil, nil,
 		list,
 	)
 
 	return content
+}
+
+
+// calculateColumnWidths calculates the maximum width for each column based on the content
+func calculateColumnWidths(data [][]string) []float32 {
+	widths := make([]float32, len(data[0]))
+
+	for _, row := range data {
+		for col, cell := range row {
+			// Measure the width of the cell text
+			width := float32(len(cell) * 10) // Approximate width (10 pixels per character)
+			if width > widths[col] {
+				widths[col] = width
+			}
+		}
+	}
+
+	return widths
 }

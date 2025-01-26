@@ -1,3 +1,4 @@
+
 package main
 
 import (
@@ -165,28 +166,14 @@ func main() {
 // ShowSettingsWindow creates a simple settings window
 func ShowSettingsWindow(a fyne.App) {
 	win := a.NewWindow("Settings")
-	toggleThemeButton := widget.NewButton("Toggle Theme", func() {
-		ToggleTheme(a)
-	})
 	win.SetContent(container.NewVBox(
 		widget.NewLabel("Settings Window"),
-		toggleThemeButton,
 		widget.NewButton("Close", func() {
 			win.Close()
 		}),
 	))
 	win.Resize(fyne.NewSize(400, 300))
 	win.Show()
-}
-
-// ToggleTheme toggles between light and dark themes
-func ToggleTheme(a fyne.App) {
-	currentTheme := a.Settings().Theme()
-	if currentTheme == theme.LightTheme() {
-		a.Settings().SetTheme(theme.DarkTheme())
-	} else {
-		a.Settings().SetTheme(theme.LightTheme())
-	}
 }
 
 // startGameSetup initiates the game setup based on selected settings

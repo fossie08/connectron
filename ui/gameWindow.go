@@ -75,9 +75,21 @@ func NewGame(gridWidth, gridHeight, players, winLength, roundCounter, bestOf int
 		OverflowRule:   overflowRule,
 		AIForMissing:   aiForMissing,
 		BombCounters:   make([]bool, players),
-		Alliances: 		make([][]int, players),
-		PlayerPoints: 	make([]float64, players),
 	}
+}
+
+
+func (g *Game) DropCounter(column int) (int, bool) {
+	if column < 0 || column >= len(g.Grid[0]) {
+		return -1, false // Invalid column
+	}
+	for i := len(g.Grid) - 1; i >= 0; i-- {
+		if g.Grid[i][column] == -1 {
+			g.Grid[i][column] = g.CurrentTurn
+			return i, true
+		}
+	}
+	return -1, false // Column is full
 }
 
 func (g *Game) CheckWin(row, column int) bool {
@@ -85,34 +97,28 @@ func (g *Game) CheckWin(row, column int) bool {
     directions := [][2]int{{0, 1}, {1, 0}, {1, 1}, {1, -1}}
     for _, dir := range directions {
         count := 1
-        alliedPlayers := map[int]bool{player: true}
         for _, sign := range []int{-1, 1} {
             r, c := row, column
             for {
                 r += dir[0] * sign
                 c += dir[1] * sign
-                if r < 0 || r >= len(g.Grid) || c < 0 || c >= len(g.Grid[0]) {
+                if r < 0 || r >= len(g.Grid) || c < 0 || c >= len(g.Grid[0]) || g.Grid[r][c] != player {
                     break
                 }
-                if g.Grid[r][c] == player || g.IsAllied(player, g.Grid[r][c]) {
-                    count++
-                    alliedPlayers[g.Grid[r][c]] = true
-                } else {
-                    break
-                }
+                count++
+                // Apply corner bonus
+				if g.CornerBonus {
+					if (r == 0 || r == len(g.Grid)-1) && (c == 0 || c == len(g.Grid[0])-1) {
+						if g.WinLength >= 7 {
+							count += 2 // 3 counters for win length 7 or more
+						} else {
+							count++ // 2 counters for win length less than 7
+						}
+					}
+				}
             }
         }
         if count >= g.WinLength {
-            g.DistributePoints(alliedPlayers)
-            return true
-        }
-    }
-    return false
-}
-
-func (g *Game) IsAllied(player1, player2 int) bool {
-    for _, ally := range g.Alliances[player1] {
-        if ally == player2 {
             return true
         }
     }
@@ -270,6 +276,23 @@ func (g *Game) evaluateBoard(isMaximizing bool) int {
 	return -1
 }
 
+func (g *Game) CheckCornerBonus(row, col int) {
+	fmt.Println(g.CornerBonus)
+	if !g.CornerBonus {
+		return // Exit if the corner bonus is not enabled
+	}
+    if (row == 0 || row == len(g.Grid)-1) && (col == 0 || col == len(g.Grid[0])-1) {
+        bonus := 2
+        if g.WinLength >= 7 {
+            bonus = 3
+        }
+        player := g.Grid[row][col]
+        if player >= 0 {
+            fmt.Printf("Player %d gets a corner bonus of %d points!\n", player, bonus)
+        }
+    }
+}
+
 func (g *Game) CheckSolitaire() {
 	if !g.SolitaireRule {
 		fmt.Println("Solitaire rule is not enabled.")
@@ -317,6 +340,18 @@ func (g *Game) CheckSolitaire() {
 	}
 }
 
+func (g *Game) UseBombCounter(row, col int) {
+    if !g.BombCounter {
+		return // Exit if the bomb counter is not enabled
+    }
+	for _, dir := range [][2]int{{0, 0}, {0, 1}, {1, 0}, {0, -1}, {-1, 0}, {1, 1}, {1, -1}, {-1, -1}, {-1, 1}} {
+		r, c := row+dir[0], col+dir[1]
+		if r >= 0 && r < len(g.Grid) && c >= 0 && c < len(g.Grid[0]) {
+			g.Grid[r][c] = -1
+		}
+	}
+}
+
 func (g *Game) CheckOverflow(column int) {
 	if g.OverflowRule && len(g.Grid) >= 6 {
 		full := true
@@ -349,174 +384,138 @@ func (g *Game) CheckOverflow(column int) {
 
 // Main game window
 func MainGameWindow(gw *Game, connectronApp fyne.App) {
-    gameWindow := connectronApp.NewWindow("Connectron - Game")
-    infoLabel := widget.NewLabel("Game Start!")
-    gameWindow.SetFullScreen(true)
+	gameWindow := connectronApp.NewWindow("Connectron - Game")
+	infoLabel := widget.NewLabel("Game Start!")
+	gameWindow.SetFullScreen(true)
 
-    gridContainer := container.NewGridWithColumns(len(gw.Grid[0]))	
-    for j := 0; j < len(gw.Grid[0]); j++ {
-        for i := 0; i < len(gw.Grid); i++ {
-            cell := canvas.NewCircle(color.RGBA{240, 240, 240, 255})
-            gridContainer.Add(cell)
-        }
-    }
-
-    var processTurn func(column int, row int) bool
-    processTurn = func(column int, row int) bool {
-        if row == -1 {
-            row, _ = gw.DropCounter(column)
-        }
-        if row == -1 {
-            infoLabel.SetText("Column is full!")
-            return false
-        }
-
-        cell := gridContainer.Objects[row*len(gw.Grid[0])+column].(*canvas.Circle)
-        cell.FillColor = gw.Colors[gw.CurrentTurn]
-        cell.Refresh()
-
-        // Apply special rules
-        gw.CheckCornerBonus(row, column)
-        gw.CheckSolitaire()
-        gw.CheckOverflow(column)
-
-        // Update the UI for the newly added counters
-        for i := 0; i < len(gw.Grid); i++ {
-            for j := 0; j < len(gw.Grid[0]); j++ {
-                cell := gridContainer.Objects[i*len(gw.Grid[0])+j].(*canvas.Circle)
-                if gw.Grid[i][j] != -1 {
-                    cell.FillColor = gw.Colors[gw.Grid[i][j]]
-                } else {
-                    cell.FillColor = color.RGBA{240, 240, 240, 255} // Default color for empty cells
-                }
-                cell.Refresh()
-            }
-        }
-
-        // Check for win
-        if gw.CheckWin(row, column) {
-            infoLabel.SetText(fmt.Sprintf("Player %d Wins!", gw.CurrentTurn+1))
-            
-            // Record the winner
-            gw.Winners = append(gw.Winners, gw.CurrentTurn+1)
-            gw.GridHistory = append(gw.GridHistory, copyGrid(gw.Grid)) // Store current grid state
-            fmt.Println("A player won: Round count", gw.RoundCount, "Best of", gw.BestOf)
-            if gw.RoundCount+1 < gw.BestOf {
-                gw.RoundCount++
-                // Start a new game
-                nextGame := NewGame(len(gw.Grid[0]), len(gw.Grid), gw.Players, gw.WinLength, gw.RoundCount, gw.BestOf, gw.PlayerTypes, gw.AIForMissing, gw.CornerBonus, gw.SolitaireRule, gw.BombCounter, gw.OverflowRule)
-                MainGameWindow(nextGame, connectronApp)
-                gameWindow.Close()
-            } else {
-                // Show results window
-                ShowResultsWindow(gw, connectronApp)
-                gameWindow.Close()
-            }
-            return true
-        }
-
-        // Check for draw
-        if gw.IsFull() {
-            fmt.Println("Draw: Round count", gw.RoundCount, "Best of", gw.BestOf)
-            infoLabel.SetText("The game is a draw!")
-            gw.Winners = append(gw.Winners, 0) // 0 indicates a draw
-            gw.GridHistory = append(gw.GridHistory, copyGrid(gw.Grid))
-
-            if gw.RoundCount+1 < gw.BestOf {
-                gw.RoundCount++
-                gameWindow.Close()
-                // Start a new game
-                nextGame := NewGame(len(gw.Grid[0]), len(gw.Grid), gw.Players, gw.WinLength, gw.RoundCount, gw.BestOf, gw.PlayerTypes, gw.AIForMissing, gw.CornerBonus, gw.SolitaireRule, gw.BombCounter, gw.OverflowRule)
-                MainGameWindow(nextGame, connectronApp)
-            } else {
-                gameWindow.Close()
-                // Show results window
-                ShowResultsWindow(gw, connectronApp)
-            }
-            return true
-        }
-
-        gw.CurrentTurn = (gw.CurrentTurn + 1) % gw.Players
-        infoLabel.SetText(fmt.Sprintf("Player %d's Turn", gw.CurrentTurn+1))
-
-        // AI move handling
-        if gw.PlayerTypes[gw.CurrentTurn] != -1 {
-            aiColumn, aiRow := gw.GetAIColumn(gw.PlayerTypes[gw.CurrentTurn])
-            time.AfterFunc(10*time.Millisecond, func() {
-                processTurn(aiColumn, aiRow)
-            })
-        }
-        return false
-    }
-
-    columnEntry := widget.NewEntry()
-    columnEntry.SetPlaceHolder("Enter Column")
-    dropButton := widget.NewButton("Drop", func() {
-        if gw.PlayerTypes[gw.CurrentTurn] == -1 {
-            col, err := strconv.Atoi(columnEntry.Text)
-            if err != nil || col < 1 || col > len(gw.Grid[0]) {
-                infoLabel.SetText("Invalid column number!")
-                return
-            }
-            if processTurn(col-1, -1) {
-                columnEntry.SetText("")
-            }
-        } else {
-            infoLabel.SetText("It's not your turn!")
-        }
-    })
-	
-    bombButton := widget.NewButton("Use Bomb Counter", func() {
-        if gw.BombCounters[gw.CurrentTurn] {
-            infoLabel.SetText("You have already used your bomb counter!")
-            return
-        }
-        col, err := strconv.Atoi(columnEntry.Text)
-        if err != nil || col < 1 || col > len(gw.Grid[0]) {
-            infoLabel.SetText("Invalid column number!")
-            return
-        }
-        row, _ := gw.DropCounter(col - 1)
-        if row == -1 {
-            infoLabel.SetText("Column is full!")
-            return
-        }
-        gw.UseBombCounter(row, col-1)
-        gw.BombCounters[gw.CurrentTurn] = true
-        infoLabel.SetText("Bomb counter used!")
-        // Update the UI for the newly added counters
-        for i := 0; i < len(gw.Grid); i++ {
-            for j := 0; j < len(gw.Grid[0]); j++ {
-                cell := gridContainer.Objects[i*len(gw.Grid[0])+j].(*canvas.Circle)
-                if gw.Grid[i][j] != -1 {
-                    cell.FillColor = gw.Colors[gw.Grid[i][j]]
-                } else {
-                    cell.FillColor = color.RGBA{240, 240, 240, 255} // Default color for empty cells
-                }
-                cell.Refresh()
-            }
-        }
-    })
-
-	if !gw.BombCounter {
-		bombButton.Disable()
+	gridContainer := container.NewGridWithColumns(len(gw.Grid[0]))	
+	for j := 0; j < len(gw.Grid[0]); j++ {
+		for i := 0; i < len(gw.Grid); i++ {
+			cell := canvas.NewCircle(color.RGBA{240, 240, 240, 255})
+			gridContainer.Add(cell)
+		}
 	}
 
-    content := container.NewBorder(
-        container.NewVBox(infoLabel, columnEntry, dropButton, bombButton),
-        nil, nil, nil, gridContainer,
-    )
+	var processTurn func(column int, row int) bool
+	processTurn = func(column int, row int) bool {
+		if row == -1 {
+			row, _ = gw.DropCounter(column)
+		}
+		if row == -1 {
+			infoLabel.SetText("Column is full!")
+			return false
+		}
 
-    gameWindow.Resize(fyne.NewSize(800, 600))
-    gameWindow.SetContent(content)
-    gameWindow.Show()
+		cell := gridContainer.Objects[row*len(gw.Grid[0])+column].(*canvas.Circle)
+		cell.FillColor = gw.Colors[gw.CurrentTurn]
+		cell.Refresh()
 
-    if gw.PlayerTypes[gw.CurrentTurn] != -1 {
-        aiColumn, aiRow := gw.GetAIColumn(gw.PlayerTypes[gw.CurrentTurn])
-        time.AfterFunc(100*time.Millisecond, func() {
-            processTurn(aiColumn, aiRow)
-        })
-    }
+		// Apply special rules
+		gw.CheckCornerBonus(row, column)
+		gw.CheckSolitaire()
+		gw.CheckOverflow(column)
+
+		// Update the UI for the newly added counters
+		for i := 0; i < len(gw.Grid); i++ {
+			for j := 0; j < len(gw.Grid[0]); j++ {
+				cell := gridContainer.Objects[i*len(gw.Grid[0])+j].(*canvas.Circle)
+				if gw.Grid[i][j] != -1 {
+					cell.FillColor = gw.Colors[gw.Grid[i][j]]
+				} else {
+					cell.FillColor = color.RGBA{240, 240, 240, 255} // Default color for empty cells
+				}
+				cell.Refresh()
+			}
+		}
+
+		// Check for win
+		if gw.CheckWin(row, column) {
+			infoLabel.SetText(fmt.Sprintf("Player %d Wins!", gw.CurrentTurn+1))
+			
+			// Record the winner
+			gw.Winners = append(gw.Winners, gw.CurrentTurn+1)
+			gw.GridHistory = append(gw.GridHistory, copyGrid(gw.Grid)) // Store current grid state
+			fmt.Println("A player won: Round count", gw.RoundCount, "Best of", gw.BestOf)
+			if gw.RoundCount+1 < gw.BestOf {
+				gw.RoundCount++
+				// Start a new game
+				nextGame := NewGame(len(gw.Grid[0]), len(gw.Grid), gw.Players, gw.WinLength, gw.RoundCount, gw.BestOf, gw.PlayerTypes, gw.AIForMissing, gw.CornerBonus, gw.SolitaireRule, gw.BombCounter, gw.OverflowRule)
+				MainGameWindow(nextGame, connectronApp)
+				gameWindow.Close()
+			} else {
+				// Show results window
+				ShowResultsWindow(gw, connectronApp)
+				gameWindow.Close()
+			}
+			return true
+		}
+
+		// Check for draw
+		if gw.IsFull() {
+			fmt.Println("Draw: Round count", gw.RoundCount, "Best of", gw.BestOf)
+			infoLabel.SetText("The game is a draw!")
+			gw.Winners = append(gw.Winners, 0) // 0 indicates a draw
+			gw.GridHistory = append(gw.GridHistory, copyGrid(gw.Grid))
+
+			if gw.RoundCount+1 < gw.BestOf {
+				gw.RoundCount++
+				gameWindow.Close()
+				// Start a new game
+				nextGame := NewGame(len(gw.Grid[0]), len(gw.Grid), gw.Players, gw.WinLength, gw.RoundCount, gw.BestOf, gw.PlayerTypes, gw.AIForMissing, gw.CornerBonus, gw.SolitaireRule, gw.BombCounter, gw.OverflowRule)
+				MainGameWindow(nextGame, connectronApp)
+			} else {
+				gameWindow.Close()
+				// Show results window
+				ShowResultsWindow(gw, connectronApp)
+			}
+			return true
+		}
+
+		gw.CurrentTurn = (gw.CurrentTurn + 1) % gw.Players
+		infoLabel.SetText(fmt.Sprintf("Player %d's Turn", gw.CurrentTurn+1))
+
+		// AI move handling
+		if gw.PlayerTypes[gw.CurrentTurn] != -1 {
+			aiColumn, aiRow := gw.GetAIColumn(gw.PlayerTypes[gw.CurrentTurn])
+			time.AfterFunc(10*time.Millisecond, func() {
+				processTurn(aiColumn, aiRow)
+			})
+		}
+		return false
+	}
+
+	columnEntry := widget.NewEntry()
+	columnEntry.SetPlaceHolder("Enter Column")
+	dropButton := widget.NewButton("Drop", func() {
+		if gw.PlayerTypes[gw.CurrentTurn] == -1 {
+			col, err := strconv.Atoi(columnEntry.Text)
+			if err != nil || col < 1 || col > len(gw.Grid[0]) {
+				infoLabel.SetText("Invalid column number!")
+				return
+			}
+			if processTurn(col-1, -1) {
+				columnEntry.SetText("")
+			}
+		} else {
+			infoLabel.SetText("It's not your turn!")
+		}
+	})
+
+	content := container.NewBorder(
+		container.NewVBox(infoLabel, columnEntry, dropButton),
+		nil, nil, nil, gridContainer,
+	)
+
+	gameWindow.Resize(fyne.NewSize(800, 600))
+	gameWindow.SetContent(content)
+	gameWindow.Show()
+
+	if gw.PlayerTypes[gw.CurrentTurn] != -1 {
+		aiColumn, aiRow := gw.GetAIColumn(gw.PlayerTypes[gw.CurrentTurn])
+		time.AfterFunc(100*time.Millisecond, func() {
+			processTurn(aiColumn, aiRow)
+		})
+	}
 }
 
 func updateLeaderboard(gw *Game) {

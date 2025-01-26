@@ -17,61 +17,61 @@ import (
 )
 
 type Game struct {
-    Grid           [][]int
-    Players        int
-    WinLength      int
-    CurrentTurn    int
-    Colors         []color.RGBA
-    PlayerTypes    []int // -1 for human 0+ for ai levels
-    BestOf         int
-    RoundCount     int
-    CornerBonus    bool
-    SolitaireRule  bool
-    BombCounter    bool
-    OverflowRule   bool
-    AIForMissing   bool
+	Grid           [][]int
+	Players        int
+	WinLength      int
+	CurrentTurn    int
+	Colors         []color.RGBA
+	PlayerTypes    []int // -1 for human 0+ for ai levels
+	BestOf         int
+	RoundCount     int
+	CornerBonus    bool
+	SolitaireRule  bool
+	BombCounter    bool
+	OverflowRule   bool
+	AIForMissing   bool
 	Winners		   []int
 	GridHistory    [][][]int
 }
 
 
 func NewGame(gridWidth, gridHeight, players, winLength, roundCounter, bestOf int, playerTypes []int, aiForMissing, cornerBonus, solitaireRule, bombCounter, overflowRule bool) *Game {
-    grid := make([][]int, gridHeight)
-    for i := range grid {
-        grid[i] = make([]int, gridWidth)
-        for j := range grid[i] {
-            grid[i][j] = -1
-        }
-    }
+	grid := make([][]int, gridHeight)
+	for i := range grid {
+		grid[i] = make([]int, gridWidth)
+		for j := range grid[i] {
+			grid[i][j] = -1
+		}
+	}
 
-    playerColors := []color.RGBA{
-        {255, 0, 0, 255},   // Red
-        {0, 255, 0, 255},   // Green
-        {0, 0, 255, 255},   // Blue
-        {255, 255, 0, 255}, // Yellow
-        {255, 0, 255, 255}, // Magenta
-        {0, 255, 255, 255}, // Cyan
-        {128, 0, 128, 255}, // Purple
-        {255, 165, 0, 255}, // Orange
-        {128, 128, 128, 255}, // Gray
-        {0, 128, 128, 255}, // Teal
-    }
+	playerColors := []color.RGBA{
+		{255, 0, 0, 255},   // Red
+		{0, 255, 0, 255},   // Green
+		{0, 0, 255, 255},   // Blue
+		{255, 255, 0, 255}, // Yellow
+		{255, 0, 255, 255}, // Magenta
+		{0, 255, 255, 255}, // Cyan
+		{128, 0, 128, 255}, // Purple
+		{255, 165, 0, 255}, // Orange
+		{128, 128, 128, 255}, // Gray
+		{0, 128, 128, 255}, // Teal
+	}
 
-    return &Game{
-        Grid:           grid,
-        Players:        players,
-        WinLength:      winLength,
-        CurrentTurn:    0,
-        Colors:         playerColors[:players],
-        PlayerTypes:    playerTypes,
-        BestOf:         bestOf,
-        RoundCount:     roundCounter,
-        CornerBonus:    cornerBonus,
-        SolitaireRule:  solitaireRule,
-        BombCounter:    bombCounter,
-        OverflowRule:   overflowRule,
-        AIForMissing:   aiForMissing,
-    }
+	return &Game{
+		Grid:           grid,
+		Players:        players,
+		WinLength:      winLength,
+		CurrentTurn:    0,
+		Colors:         playerColors[:players],
+		PlayerTypes:    playerTypes,
+		BestOf:         bestOf,
+		RoundCount:     roundCounter,
+		CornerBonus:    cornerBonus,
+		SolitaireRule:  solitaireRule,
+		BombCounter:    bombCounter,
+		OverflowRule:   overflowRule,
+		AIForMissing:   aiForMissing,
+	}
 }
 
 
@@ -238,50 +238,50 @@ func (g *Game) CheckCornerBonus(row, col int) {
 }
 
 func (g *Game) CheckSolitaire() {
-    if !g.SolitaireRule {
-        fmt.Println("Solitaire rule is not enabled.")
-        return // Exit if the solitaire rule is not enabled
-    }
+	if !g.SolitaireRule {
+		fmt.Println("Solitaire rule is not enabled.")
+		return // Exit if the solitaire rule is not enabled
+	}
 
-    for row := 0; row < len(g.Grid); row++ {
-        for col := 0; col < len(g.Grid[0]); col++ {
-            player := g.Grid[row][col]
-            if player == -1 {
-                continue // Skip empty cells
-            }
+	for row := 0; row < len(g.Grid); row++ {
+		for col := 0; col < len(g.Grid[0]); col++ {
+			player := g.Grid[row][col]
+			if player == -1 {
+				continue // Skip empty cells
+			}
 
-            // Check if all neighbors belong to the same player
-            neighborPlayer := -1
-            surroundedBySamePlayer := true
-            for _, dir := range [][2]int{{0, 1}, {1, 0}, {0, -1}, {-1, 0}} {
-                r, c := row+dir[0], col+dir[1]
-                if r >= 0 && r < len(g.Grid) && c >= 0 && c < len(g.Grid[0]) {
-                    neighbor := g.Grid[r][c]
-                    if neighbor == -1 || (neighborPlayer != -1 && neighbor != neighborPlayer) {
-                        surroundedBySamePlayer = false
-                        break
-                    }
-                    neighborPlayer = neighbor
-                } else {
-                    surroundedBySamePlayer = false // Out-of-bound neighbors do not count
-                    break
-                }
-            }
+			// Check if all neighbors belong to the same player
+			neighborPlayer := -1
+			surroundedBySamePlayer := true
+			for _, dir := range [][2]int{{0, 1}, {1, 0}, {0, -1}, {-1, 0}} {
+				r, c := row+dir[0], col+dir[1]
+				if r >= 0 && r < len(g.Grid) && c >= 0 && c < len(g.Grid[0]) {
+					neighbor := g.Grid[r][c]
+					if neighbor == -1 || (neighborPlayer != -1 && neighbor != neighborPlayer) {
+						surroundedBySamePlayer = false
+						break
+					}
+					neighborPlayer = neighbor
+				} else {
+					surroundedBySamePlayer = false // Out-of-bound neighbors do not count
+					break
+				}
+			}
 
-            if surroundedBySamePlayer {
-                // Remove the solitaire counter
-                for r := row; r > 0; r-- {
-                    g.Grid[r][col] = g.Grid[r-1][col]
-                }
-                g.Grid[0][col] = -1 // Set the top cell to empty
+			if surroundedBySamePlayer {
+				// Remove the solitaire counter
+				for r := row; r > 0; r-- {
+					g.Grid[r][col] = g.Grid[r-1][col]
+				}
+				g.Grid[0][col] = -1 // Set the top cell to empty
 
-                // Reset the loop to re-check the updated grid
-                row = 0
-                col = -1 // This ensures the outer loop resets correctly after modification
-                break
-            }
-        }
-    }
+				// Reset the loop to re-check the updated grid
+				row = 0
+				col = -1 // This ensures the outer loop resets correctly after modification
+				break
+			}
+		}
+	}
 }
 
 
@@ -297,33 +297,33 @@ func (g *Game) UseBombCounter(row, col int) {
 }
 
 func (g *Game) CheckOverflow(column int) {
-    if g.OverflowRule && len(g.Grid) >= 6 {
-        full := true
-        for _, cell := range g.Grid {
-            if cell[column] == -1 {
-                full = false
-                break
-            }
-        }
-        if full {
-            // Drop a counter in the left adjacent column if possible
-            if column > 0 {
-                row, success := g.DropCounter(column - 1)
-                if success {
-                    // Set the color of the newly dropped counter
-                    g.Grid[row][column-1] = g.CurrentTurn
-                }
-            }
-            // Drop a counter in the right adjacent column if possible
-            if column < len(g.Grid[0])-1 {
-                row, success := g.DropCounter(column + 1)
-                if success {
-                    // Set the color of the newly dropped counter
-                    g.Grid[row][column+1] = g.CurrentTurn
-                }
-            }
-        }
-    }
+	if g.OverflowRule && len(g.Grid) >= 6 {
+		full := true
+		for _, cell := range g.Grid {
+			if cell[column] == -1 {
+				full = false
+				break
+			}
+		}
+		if full {
+			// Drop a counter in the left adjacent column if possible
+			if column > 0 {
+				row, success := g.DropCounter(column - 1)
+				if success {
+					// Set the color of the newly dropped counter
+					g.Grid[row][column-1] = g.CurrentTurn
+				}
+			}
+			// Drop a counter in the right adjacent column if possible
+			if column < len(g.Grid[0])-1 {
+				row, success := g.DropCounter(column + 1)
+				if success {
+					// Set the color of the newly dropped counter
+					g.Grid[row][column+1] = g.CurrentTurn
+				}
+			}
+		}
+	}
 } 
 
 // Main game window
@@ -580,12 +580,12 @@ func ShowResultsWindow(gw *Game, connectronApp fyne.App) {
 
 // Utility function to copy the grid
 func copyGrid(grid [][]int) [][]int {
-    newGrid := make([][]int, len(grid))
-    for i := range grid {
-        newGrid[i] = make([]int, len(grid[i]))
-        copy(newGrid[i], grid[i])
-    }
-    return newGrid
+	newGrid := make([][]int, len(grid))
+	for i := range grid {
+		newGrid[i] = make([]int, len(grid[i]))
+		copy(newGrid[i], grid[i])
+	}
+	return newGrid
 }
 
 func init() {

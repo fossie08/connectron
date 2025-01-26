@@ -184,18 +184,24 @@ func startGameSetup(gridWidth, gridHeight, lineLength, playerCount int, enableAl
 	ui.MainGameWindow(game, fyne.CurrentApp())
 }
 
-// showAlliancesWindow creates and displays the alliances configuration window
 func showAlliancesWindow(a fyne.App, playerCountSlider *widget.Slider) {
 	win := a.NewWindow("Configure Alliances")
 
 	// Generate players dynamically based on the playerCountSlider value
 	playerCount := int(playerCountSlider.Value)
-	players := make([]string, playerCount)
+	var players []string
+
+	// Create players but only add them if they haven't been generated before
 	for i := 0; i < playerCount; i++ {
-		players[i] = fmt.Sprintf("Player-%d", i+1)
+		playerName := fmt.Sprintf("Player-%d", i+1)
+
+		// Check if the player already exists in the alliances or unassigned lists
+		if !playerExists(playerName) {
+			players = append(players, playerName)
+		}
 	}
 
-	// Update unassigned players whenever the alliances window is opened
+	// Update unassigned players only with new players
 	unassigned = append([]string{}, players...)
 
 	// Create the alliance manager window with the player count slider
@@ -206,6 +212,28 @@ func showAlliancesWindow(a fyne.App, playerCountSlider *widget.Slider) {
 	win.Resize(fyne.NewSize(600, 400))
 	win.Show()
 }
+
+// Helper function to check if a player already exists
+func playerExists(playerName string) bool {
+	// Check in alliances map
+	for _, alliedPlayers := range alliances {
+		for _, alliedPlayer := range alliedPlayers {
+			if alliedPlayer == playerName {
+				return true
+			}
+		}
+	}
+
+	// Check in unassigned players list
+	for _, unassignedPlayer := range unassigned {
+		if unassignedPlayer == playerName {
+			return true
+		}
+	}
+
+	return false
+}
+
 
 // CreateAllianceManagerWindow creates the alliance manager UI with dynamic player assignment
 func CreateAllianceManagerWindow(playerCountSlider *widget.Slider) fyne.CanvasObject {

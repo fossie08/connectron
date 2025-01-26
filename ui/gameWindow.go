@@ -33,6 +33,8 @@ type Game struct {
 	Winners		   []int
 	GridHistory    [][][]int
 	BombCounters   []bool
+	Alliances      [][]int
+	PlayerPoints   []float64
 }
 
 
@@ -73,21 +75,9 @@ func NewGame(gridWidth, gridHeight, players, winLength, roundCounter, bestOf int
 		OverflowRule:   overflowRule,
 		AIForMissing:   aiForMissing,
 		BombCounters:   make([]bool, players),
+		Alliances: 		make([][]int, players),
+		PlayerPoints: 	make([]float64, players),
 	}
-}
-
-
-func (g *Game) DropCounter(column int) (int, bool) {
-	if column < 0 || column >= len(g.Grid[0]) {
-		return -1, false // Invalid column
-	}
-	for i := len(g.Grid) - 1; i >= 0; i-- {
-		if g.Grid[i][column] == -1 {
-			g.Grid[i][column] = g.CurrentTurn
-			return i, true
-		}
-	}
-	return -1, false // Column is full
 }
 
 func (g *Game) CheckWin(row, column int) bool {
@@ -95,43 +85,90 @@ func (g *Game) CheckWin(row, column int) bool {
     directions := [][2]int{{0, 1}, {1, 0}, {1, 1}, {1, -1}}
     for _, dir := range directions {
         count := 1
+        alliedPlayers := map[int]bool{player: true}
         for _, sign := range []int{-1, 1} {
             r, c := row, column
             for {
                 r += dir[0] * sign
                 c += dir[1] * sign
-                if r < 0 || r >= len(g.Grid) || c < 0 || c >= len(g.Grid[0]) || g.Grid[r][c] != player {
+                if r < 0 || r >= len(g.Grid) || c < 0 || c >= len(g.Grid[0]) {
                     break
                 }
-                count++
-                // Apply corner bonus
-				if g.CornerBonus {
-					if (r == 0 || r == len(g.Grid)-1) && (c == 0 || c == len(g.Grid[0])-1) {
-						if g.WinLength >= 7 {
-							count += 2 // 3 counters for win length 7 or more
-						} else {
-							count++ // 2 counters for win length less than 7
-						}
-					}
-				}
+                if g.Grid[r][c] == player || g.IsAllied(player, g.Grid[r][c]) {
+                    count++
+                    alliedPlayers[g.Grid[r][c]] = true
+                } else {
+                    break
+                }
             }
         }
         if count >= g.WinLength {
+            g.DistributePoints(alliedPlayers)
             return true
         }
     }
     return false
 }
 
+func (g *Game) IsAllied(player1, player2 int) bool {
+    for _, ally := range g.Alliances[player1] {
+        if ally == player2 {
+            return true
+        }
+    }
+    return false
+}
+
+func (g *Game) DistributePoints(alliedPlayers map[int]bool) {
+    points := 1.0 / float64(len(alliedPlayers))
+    for player := range alliedPlayers {
+        g.PlayerPoints[player] += points
+    }
+}
+
+func (g *Game) DropCounter(column int) (int, bool) {
+    for i := len(g.Grid) - 1; i >= 0; i-- {
+        if g.Grid[i][column] == -1 {
+            g.Grid[i][column] = g.CurrentTurn
+            return i, true
+        }
+    }
+    return -1, false
+}
+
 func (g *Game) IsFull() bool {
-	for _, row := range g.Grid {
-		for _, cell := range row {
-			if cell == -1 {
-				return false
-			}
-		}
-	}
-	return true
+    for _, row := range g.Grid {
+        for _, cell := range row {
+            if cell == -1 {
+                return false
+            }
+        }
+    }
+    return true
+}
+
+func (g *Game) CheckCornerBonus(row, col int) {
+    if g.CornerBonus && (row == 0 || row == len(g.Grid)-1) && (col == 0 || col == len(g.Grid[0])-1) {
+        bonus := 2
+        if g.WinLength >= 7 {
+            bonus = 3
+        }
+        player := g.Grid[row][col]
+        if player >= 0 {
+            fmt.Printf("Player %d gets a corner bonus of %d points!\n", player, bonus)
+        }
+    }
+}
+
+func (g *Game) UseBombCounter(row, col int) {
+    if g.BombCounter {
+        for _, dir := range [][2]int{{0, 0}, {0, 1}, {1, 0}, {0, -1}, {-1, 0}, {1, 1}, {1, -1}, {-1, -1}, {-1, 1}} {
+            r, c := row+dir[0], col+dir[1]
+            if r >= 0 && r < len(g.Grid) && c >= 0 && c < len(g.Grid[0]) {
+                g.Grid[r][c] = -1
+            }
+        }
+    }
 }
 
 // AI Strategies
@@ -233,23 +270,6 @@ func (g *Game) evaluateBoard(isMaximizing bool) int {
 	return -1
 }
 
-func (g *Game) CheckCornerBonus(row, col int) {
-	fmt.Println(g.CornerBonus)
-	if !g.CornerBonus {
-		return // Exit if the corner bonus is not enabled
-	}
-    if (row == 0 || row == len(g.Grid)-1) && (col == 0 || col == len(g.Grid[0])-1) {
-        bonus := 2
-        if g.WinLength >= 7 {
-            bonus = 3
-        }
-        player := g.Grid[row][col]
-        if player >= 0 {
-            fmt.Printf("Player %d gets a corner bonus of %d points!\n", player, bonus)
-        }
-    }
-}
-
 func (g *Game) CheckSolitaire() {
 	if !g.SolitaireRule {
 		fmt.Println("Solitaire rule is not enabled.")
@@ -293,18 +313,6 @@ func (g *Game) CheckSolitaire() {
 				col = -1 // This ensures the outer loop resets correctly after modification
 				break
 			}
-		}
-	}
-}
-
-func (g *Game) UseBombCounter(row, col int) {
-    if !g.BombCounter {
-		return // Exit if the bomb counter is not enabled
-    }
-	for _, dir := range [][2]int{{0, 0}, {0, 1}, {1, 0}, {0, -1}, {-1, 0}, {1, 1}, {1, -1}, {-1, -1}, {-1, 1}} {
-		r, c := row+dir[0], col+dir[1]
-		if r >= 0 && r < len(g.Grid) && c >= 0 && c < len(g.Grid[0]) {
-			g.Grid[r][c] = -1
 		}
 	}
 }

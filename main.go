@@ -1,14 +1,15 @@
-
 package main
 
 import (
 	"fmt"
+	"strconv"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"strconv"
+	"insighthub.uk/connectron/v2/saves"
 	"insighthub.uk/connectron/v2/ui"
 )
 
@@ -140,14 +141,6 @@ func main() {
 		allianceSetupButton,
 	)
 
-	leftPane := container.NewVBox(
-		widget.NewAccordion(
-			widget.NewAccordionItem("Grid Settings", gridSettings),
-			widget.NewAccordionItem("Player Settings", playerSettings),
-			widget.NewAccordionItem("Rules", ruleSettings),
-		),
-	)
-
 	// Start Game Button
 	startGameButton := widget.NewButton("Start Game", func() {
 		bestOfConverted, _ := strconv.Atoi("1")
@@ -159,12 +152,25 @@ func main() {
 		startGameSetup(int(gridWidthSlider.Value), int(gridHeightSlider.Value), int(lineLengthSlider.Value), int(playerCountSlider.Value), allianceRuleCheckbox.Checked, playerTypes, bestOfConverted, cornerBonusCheckbox.Checked, solitaireRuleCheckbox.Checked, bombCounterCheckbox.Checked, overflowRuleCheckbox.Checked, aiForMissingCheckbox.Checked, alliancesSlice)
 	})
 
+	leftPane := container.NewVBox(
+		widget.NewAccordion(
+			widget.NewAccordionItem("Grid Settings", gridSettings),
+			widget.NewAccordionItem("Player Settings", playerSettings),
+			widget.NewAccordionItem("Rules", ruleSettings),
+		),
+		startGameButton,
+	)
+
+
+	leaderboardData, _ := saves.ReadCSV("files/leaderboard.csv")
 	// Main Tabs
 	tabs := container.NewAppTabs(
 		container.NewTabItem("Setup Game", leftPane),
+		container.NewTabItem("Leaderboard", ui.CreateLeaderboard(leaderboardData)),
 	)
+	
 
-	mainWindow.SetContent(container.NewBorder(nil, startGameButton, nil, nil, tabs))
+	mainWindow.SetContent(container.NewBorder(nil, nil, nil, nil, tabs))
 	mainWindow.ShowAndRun()
 }
 

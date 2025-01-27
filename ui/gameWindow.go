@@ -34,10 +34,11 @@ type Game struct {
 	Winners		   []int
 	GridHistory    [][][]int
 	BombCounters   []bool
+	Alliances	   [][]string
 }
 
 
-func NewGame(gridWidth, gridHeight, players, winLength, roundCounter, bestOf int, playerTypes []int, aiForMissing, cornerBonus, solitaireRule, bombCounter, overflowRule, enableAlliances bool) *Game {
+func NewGame(gridWidth, gridHeight, players, winLength, roundCounter, bestOf int, playerTypes []int, aiForMissing, cornerBonus, solitaireRule, bombCounter, overflowRule, enableAlliances bool, alliances [][]string) *Game {
 	grid := make([][]int, gridHeight)
 	for i := range grid {
 		grid[i] = make([]int, gridWidth)
@@ -75,6 +76,7 @@ func NewGame(gridWidth, gridHeight, players, winLength, roundCounter, bestOf int
 		AIForMissing:   aiForMissing,
 		EnableAlliances: enableAlliances,
 		BombCounters:   make([]bool, players),
+		Alliances: 	alliances,
 	}
 }
 
@@ -95,6 +97,30 @@ func (g *Game) DropCounter(column int) (int, bool) {
 func (g *Game) CheckWin(row, column int) bool {
     player := g.Grid[row][column]
     directions := [][2]int{{0, 1}, {1, 0}, {1, 1}, {1, -1}}
+
+    // Helper function to check if two players are in the same alliance
+	inSameAlliance := func(player1, player2 int) bool {
+		if player1 == -1 || player2 == -1 {
+			return false // Blank circles are not in any alliance
+		}
+		for _, alliance := range g.Alliances {
+			inAlliance1 := false
+			inAlliance2 := false
+			for _, p := range alliance {
+				if p == fmt.Sprintf("Player-%d", player1+1) {
+					inAlliance1 = true
+				}
+				if p == fmt.Sprintf("Player-%d", player2+1) {
+					inAlliance2 = true
+				}
+			}
+			if inAlliance1 && inAlliance2 {
+				return true
+			}
+		}
+		return false
+	}
+
     for _, dir := range directions {
         count := 1
         for _, sign := range []int{-1, 1} {
@@ -102,30 +128,29 @@ func (g *Game) CheckWin(row, column int) bool {
             for {
                 r += dir[0] * sign
                 c += dir[1] * sign
-				if !g.EnableAlliances {
-					if r < 0 || r >= len(g.Grid) || c < 0 || c >= len(g.Grid[0]) || g.Grid[r][c] != player {
-						break
-					}
-				} else {// for alliances
-					// need to load in alliances and setup lines etc
-					if r < 0 || r >= len(g.Grid) || c < 0 || c >= len(g.Grid[0]) || g.Grid[r][c] != player {
-						break
-					}
-				}
+                if r < 0 || r >= len(g.Grid) || c < 0 || c >= len(g.Grid[0]) {
+                    break
+                }
+				fmt.Printf("In same alliance: %d, %d, %t\n", player, g.Grid[r][c], inSameAlliance(player, g.Grid[r][c])) // Debugging statement
+                if g.Grid[r][c] != player && (!g.EnableAlliances || !inSameAlliance(player, g.Grid[r][c])) {
+                    break
+                }
                 count++
+                fmt.Printf("Count: %d, Player: %d, Position: (%d, %d)\n", count, player, r, c) // Debugging statement
                 // Apply corner bonus
-				if g.CornerBonus {
-					if (r == 0 || r == len(g.Grid)-1) && (c == 0 || c == len(g.Grid[0])-1) {
-						if g.WinLength >= 7 {
-							count += 2 // 3 counters for win length 7 or more
-						} else {
-							count++ // 2 counters for win length less than 7
-						}
-					}
-				}
+                if g.CornerBonus {
+                    if (r == 0 || r == len(g.Grid)-1) && (c == 0 || c == len(g.Grid[0])-1) {
+                        if g.WinLength >= 7 {
+                            count += 2 // 3 counters for win length 7 or more
+                        } else {
+                            count++ // 2 counters for win length less than 7
+                        }
+                    }
+                }
             }
         }
         if count >= g.WinLength {
+            fmt.Printf("Winning condition met. Count: %d, WinLength: %d\n", count, g.WinLength) // Debugging statement
             return true
         }
     }
@@ -352,7 +377,7 @@ func (g *Game) CheckOverflow(column int) {
 func MainGameWindow(gw *Game, connectronApp fyne.App) {
     gameWindow := connectronApp.NewWindow("Connectron - Game")
     infoLabel := widget.NewLabel("Game Start!")
-    gameWindow.SetFullScreen(true)
+    //gameWindow.SetFullScreen(true)
 
     gridContainer := container.NewGridWithColumns(len(gw.Grid[0]))	
     for j := 0; j < len(gw.Grid[0]); j++ {
@@ -405,7 +430,7 @@ func MainGameWindow(gw *Game, connectronApp fyne.App) {
             if gw.RoundCount+1 < gw.BestOf {
                 gw.RoundCount++
                 // Start a new game
-                nextGame := NewGame(len(gw.Grid[0]), len(gw.Grid), gw.Players, gw.WinLength, gw.RoundCount, gw.BestOf, gw.PlayerTypes, gw.AIForMissing, gw.CornerBonus, gw.SolitaireRule, gw.BombCounter, gw.OverflowRule, gw.EnableAlliances)
+                nextGame := NewGame(len(gw.Grid[0]), len(gw.Grid), gw.Players, gw.WinLength, gw.RoundCount, gw.BestOf, gw.PlayerTypes, gw.AIForMissing, gw.CornerBonus, gw.SolitaireRule, gw.BombCounter, gw.OverflowRule, gw.EnableAlliances, gw.Alliances)
                 MainGameWindow(nextGame, connectronApp)
                 gameWindow.Close()
             } else {
@@ -427,7 +452,7 @@ func MainGameWindow(gw *Game, connectronApp fyne.App) {
                 gw.RoundCount++
                 gameWindow.Close()
                 // Start a new game
-                nextGame := NewGame(len(gw.Grid[0]), len(gw.Grid), gw.Players, gw.WinLength, gw.RoundCount, gw.BestOf, gw.PlayerTypes, gw.AIForMissing, gw.CornerBonus, gw.SolitaireRule, gw.BombCounter, gw.OverflowRule, gw.EnableAlliances)
+                nextGame := NewGame(len(gw.Grid[0]), len(gw.Grid), gw.Players, gw.WinLength, gw.RoundCount, gw.BestOf, gw.PlayerTypes, gw.AIForMissing, gw.CornerBonus, gw.SolitaireRule, gw.BombCounter, gw.OverflowRule, gw.EnableAlliances, gw.Alliances)
                 MainGameWindow(nextGame, connectronApp)
             } else {
                 gameWindow.Close()

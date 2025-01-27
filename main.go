@@ -151,7 +151,12 @@ func main() {
 	// Start Game Button
 	startGameButton := widget.NewButton("Start Game", func() {
 		bestOfConverted, _ := strconv.Atoi("1")
-		startGameSetup(int(gridWidthSlider.Value), int(gridHeightSlider.Value), int(lineLengthSlider.Value), int(playerCountSlider.Value), allianceRuleCheckbox.Checked, playerTypes, bestOfConverted, cornerBonusCheckbox.Checked, solitaireRuleCheckbox.Checked, bombCounterCheckbox.Checked, overflowRuleCheckbox.Checked, aiForMissingCheckbox.Checked)
+		// Convert Alliances map to a 2D slice
+		var alliancesSlice [][]string
+		for _, players := range Alliances {
+			alliancesSlice = append(alliancesSlice, players)
+		}
+		startGameSetup(int(gridWidthSlider.Value), int(gridHeightSlider.Value), int(lineLengthSlider.Value), int(playerCountSlider.Value), allianceRuleCheckbox.Checked, playerTypes, bestOfConverted, cornerBonusCheckbox.Checked, solitaireRuleCheckbox.Checked, bombCounterCheckbox.Checked, overflowRuleCheckbox.Checked, aiForMissingCheckbox.Checked, alliancesSlice)
 	})
 
 	// Main Tabs
@@ -177,9 +182,9 @@ func ShowSettingsWindow(a fyne.App) {
 }
 
 // startGameSetup initiates the game setup based on selected settings
-func startGameSetup(gridWidth, gridHeight, lineLength, playerCount int, enableAlliances bool, playerTypes []int, bestOf int, cornerBonus, solitaireRule, bombCounter, overflowRule, aiForMissing bool) {
+func startGameSetup(gridWidth, gridHeight, lineLength, playerCount int, enableAlliances bool, playerTypes []int, bestOf int, cornerBonus, solitaireRule, bombCounter, overflowRule, aiForMissing bool, alliances [][]string) {
 	// Create and configure the game instance here (this part is a placeholder)
-	game := ui.NewGame(gridWidth, gridHeight, playerCount, lineLength, 0, bestOf, playerTypes, aiForMissing, cornerBonus, solitaireRule, bombCounter, overflowRule, enableAlliances)
+	game := ui.NewGame(gridWidth, gridHeight, playerCount, lineLength, 0, bestOf, playerTypes, aiForMissing, cornerBonus, solitaireRule, bombCounter, overflowRule, enableAlliances, alliances)
 
 	// Display the main game window
 	ui.MainGameWindow(game, fyne.CurrentApp())

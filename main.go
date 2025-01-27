@@ -18,7 +18,7 @@ const (
 	HardAI
 )
 
-var alliances = map[string][]string{}
+var Alliances = map[string][]string{}
 var unassigned []string
 
 func main() {
@@ -179,7 +179,7 @@ func ShowSettingsWindow(a fyne.App) {
 // startGameSetup initiates the game setup based on selected settings
 func startGameSetup(gridWidth, gridHeight, lineLength, playerCount int, enableAlliances bool, playerTypes []int, bestOf int, cornerBonus, solitaireRule, bombCounter, overflowRule, aiForMissing bool) {
 	// Create and configure the game instance here (this part is a placeholder)
-	game := ui.NewGame(gridWidth, gridHeight, playerCount, lineLength, 0, bestOf, playerTypes, aiForMissing, cornerBonus, solitaireRule, bombCounter, overflowRule)
+	game := ui.NewGame(gridWidth, gridHeight, playerCount, lineLength, 0, bestOf, playerTypes, aiForMissing, cornerBonus, solitaireRule, bombCounter, overflowRule, enableAlliances)
 
 	// Display the main game window
 	ui.MainGameWindow(game, fyne.CurrentApp())
@@ -196,7 +196,7 @@ func showAlliancesWindow(a fyne.App, playerCountSlider *widget.Slider) {
 	for i := 0; i < playerCount; i++ {
 		playerName := fmt.Sprintf("Player-%d", i+1)
 
-		// Check if the player already exists in the alliances or unassigned lists
+		// Check if the player already exists in the Alliances or unassigned lists
 		if !playerExists(playerName) {
 			players = append(players, playerName)
 		}
@@ -216,8 +216,8 @@ func showAlliancesWindow(a fyne.App, playerCountSlider *widget.Slider) {
 
 // Helper function to check if a player already exists
 func playerExists(playerName string) bool {
-	// Check in alliances map
-	for _, alliedPlayers := range alliances {
+	// Check in Alliances map
+	for _, alliedPlayers := range Alliances {
 		for _, alliedPlayer := range alliedPlayers {
 			if alliedPlayer == playerName {
 				return true
@@ -266,8 +266,8 @@ func CreateAllianceManagerWindow(playerCountSlider *widget.Slider) fyne.CanvasOb
 	}
 	
 
-	// Load existing alliances into the window
-	for allianceName, playersInAlliance := range alliances {
+	// Load existing Alliances into the window
+	for allianceName, playersInAlliance := range Alliances {
 		// Create a list for each existing alliance
 		allianceList := widget.NewList(
 			func() int { return len(playersInAlliance) },
@@ -287,15 +287,15 @@ func CreateAllianceManagerWindow(playerCountSlider *widget.Slider) fyne.CanvasOb
 			if selectedUnassignedItem >= 0 && selectedUnassignedItem < len(unassigned) {
 				player := unassigned[selectedUnassignedItem]
 				unassigned = append(unassigned[:selectedUnassignedItem], unassigned[selectedUnassignedItem+1:]...)
-				alliances[allianceName] = append(alliances[allianceName], player)
+				Alliances[allianceName] = append(Alliances[allianceName], player)
 				refreshLists()
 			}
 		})
 
 		moveToUnassigned := widget.NewButton("← Unassign", func() {
-			if selectedAllianceItem >= 0 && selectedAllianceItem < len(alliances[allianceName]) {
-				player := alliances[allianceName][selectedAllianceItem]
-				alliances[allianceName] = append(alliances[allianceName][:selectedAllianceItem], alliances[allianceName][selectedAllianceItem+1:]...)
+			if selectedAllianceItem >= 0 && selectedAllianceItem < len(Alliances[allianceName]) {
+				player := Alliances[allianceName][selectedAllianceItem]
+				Alliances[allianceName] = append(Alliances[allianceName][:selectedAllianceItem], Alliances[allianceName][selectedAllianceItem+1:]...)
 				unassigned = append(unassigned, player)
 				refreshLists()
 			}
@@ -314,15 +314,15 @@ func CreateAllianceManagerWindow(playerCountSlider *widget.Slider) fyne.CanvasOb
 
 	// Create a new alliance
 	newAllianceButton := widget.NewButton("Add Alliance", func() {
-		allianceName := fmt.Sprintf("Alliance-%d", len(alliances)+1)
-		alliances[allianceName] = []string{}
+		allianceName := fmt.Sprintf("Alliance-%d", len(Alliances)+1)
+		Alliances[allianceName] = []string{}
 
 		// Create a list for the new alliance
 		allianceList := widget.NewList(
-			func() int { return len(alliances[allianceName]) },
+			func() int { return len(Alliances[allianceName]) },
 			func() fyne.CanvasObject { return widget.NewLabel("") },
 			func(id widget.ListItemID, o fyne.CanvasObject) {
-				o.(*widget.Label).SetText(alliances[allianceName][id])
+				o.(*widget.Label).SetText(Alliances[allianceName][id])
 			},
 		)
 
@@ -336,15 +336,15 @@ func CreateAllianceManagerWindow(playerCountSlider *widget.Slider) fyne.CanvasOb
 			if selectedUnassignedItem >= 0 && selectedUnassignedItem < len(unassigned) {
 				player := unassigned[selectedUnassignedItem]
 				unassigned = append(unassigned[:selectedUnassignedItem], unassigned[selectedUnassignedItem+1:]...)
-				alliances[allianceName] = append(alliances[allianceName], player)
+				Alliances[allianceName] = append(Alliances[allianceName], player)
 				refreshLists()
 			}
 		})
 
 		moveToUnassigned := widget.NewButton("← Unassign", func() {
-			if selectedAllianceItem >= 0 && selectedAllianceItem < len(alliances[allianceName]) {
-				player := alliances[allianceName][selectedAllianceItem]
-				alliances[allianceName] = append(alliances[allianceName][:selectedAllianceItem], alliances[allianceName][selectedAllianceItem+1:]...)
+			if selectedAllianceItem >= 0 && selectedAllianceItem < len(Alliances[allianceName]) {
+				player := Alliances[allianceName][selectedAllianceItem]
+				Alliances[allianceName] = append(Alliances[allianceName][:selectedAllianceItem], Alliances[allianceName][selectedAllianceItem+1:]...)
 				unassigned = append(unassigned, player)
 				refreshLists()
 			}
@@ -360,15 +360,15 @@ func CreateAllianceManagerWindow(playerCountSlider *widget.Slider) fyne.CanvasOb
 		))
 	})
 
-	// Confirm button to save the alliances into a 2D array
+	// Confirm button to save the Alliances into a 2D array
 	confirmButton := widget.NewButton("Confirm Alliances", func() {
-		// Save alliances to a 2D array (flattening alliances map into a 2D array)
+		// Save Alliances to a 2D array (flattening Alliances map into a 2D array)
 		var allianceArray [][]string
-		for _, playersInAlliance := range alliances {
+		for _, playersInAlliance := range Alliances {
 			allianceArray = append(allianceArray, playersInAlliance)
 		}
 
-		// Optionally, save `alliances` globally to persist across windows
+		// Optionally, save `Alliances` globally to persist across windows
 		fmt.Println("Alliances confirmed:", allianceArray)
 	})
 

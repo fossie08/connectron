@@ -30,13 +30,14 @@ type Game struct {
 	BombCounter    bool
 	OverflowRule   bool
 	AIForMissing   bool
+	EnableAlliances bool
 	Winners		   []int
 	GridHistory    [][][]int
 	BombCounters   []bool
 }
 
 
-func NewGame(gridWidth, gridHeight, players, winLength, roundCounter, bestOf int, playerTypes []int, aiForMissing, cornerBonus, solitaireRule, bombCounter, overflowRule bool) *Game {
+func NewGame(gridWidth, gridHeight, players, winLength, roundCounter, bestOf int, playerTypes []int, aiForMissing, cornerBonus, solitaireRule, bombCounter, overflowRule, enableAlliances bool) *Game {
 	grid := make([][]int, gridHeight)
 	for i := range grid {
 		grid[i] = make([]int, gridWidth)
@@ -72,6 +73,7 @@ func NewGame(gridWidth, gridHeight, players, winLength, roundCounter, bestOf int
 		BombCounter:    bombCounter,
 		OverflowRule:   overflowRule,
 		AIForMissing:   aiForMissing,
+		EnableAlliances: enableAlliances,
 		BombCounters:   make([]bool, players),
 	}
 }
@@ -100,9 +102,16 @@ func (g *Game) CheckWin(row, column int) bool {
             for {
                 r += dir[0] * sign
                 c += dir[1] * sign
-                if r < 0 || r >= len(g.Grid) || c < 0 || c >= len(g.Grid[0]) || g.Grid[r][c] != player {
-                    break
-                }
+				if !g.EnableAlliances {
+					if r < 0 || r >= len(g.Grid) || c < 0 || c >= len(g.Grid[0]) || g.Grid[r][c] != player {
+						break
+					}
+				} else {// for alliances
+					// need to load in alliances and setup lines etc
+					if r < 0 || r >= len(g.Grid) || c < 0 || c >= len(g.Grid[0]) || g.Grid[r][c] != player {
+						break
+					}
+				}
                 count++
                 // Apply corner bonus
 				if g.CornerBonus {
@@ -396,7 +405,7 @@ func MainGameWindow(gw *Game, connectronApp fyne.App) {
             if gw.RoundCount+1 < gw.BestOf {
                 gw.RoundCount++
                 // Start a new game
-                nextGame := NewGame(len(gw.Grid[0]), len(gw.Grid), gw.Players, gw.WinLength, gw.RoundCount, gw.BestOf, gw.PlayerTypes, gw.AIForMissing, gw.CornerBonus, gw.SolitaireRule, gw.BombCounter, gw.OverflowRule)
+                nextGame := NewGame(len(gw.Grid[0]), len(gw.Grid), gw.Players, gw.WinLength, gw.RoundCount, gw.BestOf, gw.PlayerTypes, gw.AIForMissing, gw.CornerBonus, gw.SolitaireRule, gw.BombCounter, gw.OverflowRule, gw.EnableAlliances)
                 MainGameWindow(nextGame, connectronApp)
                 gameWindow.Close()
             } else {
@@ -418,7 +427,7 @@ func MainGameWindow(gw *Game, connectronApp fyne.App) {
                 gw.RoundCount++
                 gameWindow.Close()
                 // Start a new game
-                nextGame := NewGame(len(gw.Grid[0]), len(gw.Grid), gw.Players, gw.WinLength, gw.RoundCount, gw.BestOf, gw.PlayerTypes, gw.AIForMissing, gw.CornerBonus, gw.SolitaireRule, gw.BombCounter, gw.OverflowRule)
+                nextGame := NewGame(len(gw.Grid[0]), len(gw.Grid), gw.Players, gw.WinLength, gw.RoundCount, gw.BestOf, gw.PlayerTypes, gw.AIForMissing, gw.CornerBonus, gw.SolitaireRule, gw.BombCounter, gw.OverflowRule, gw.EnableAlliances)
                 MainGameWindow(nextGame, connectronApp)
             } else {
                 gameWindow.Close()
